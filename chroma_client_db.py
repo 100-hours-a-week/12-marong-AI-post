@@ -1,0 +1,62 @@
+## 아래 주석 풀고 터미널에 입력하면 8001로 크로마디비 로컬서버 열림!
+
+from chromadb import HttpClient
+from chromadb.utils import embedding_functions
+
+# 기존 임베딩 함수
+_embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="sentence-transformers/paraphrase-MiniLM-L6-v2"
+)
+
+# HttpClient 인스턴스 생성
+_client = HttpClient(
+    host="localhost",
+    port=8001,
+    ssl=False
+)
+
+def get_chroma_client():
+    """Chroma DB HttpClient 인스턴스 반환"""
+    return _client
+
+def get_embedding_function():
+    """문장 임베딩 함수 인스턴스 반환"""
+    return _embedding_func
+
+
+
+def get_mbti_latest_collection():
+    """유저별 최신 MBTI 저장용 컬렉션"""
+    return _client.get_or_create_collection(
+        name="user_mbti_latest",
+        embedding_function=None  # 메타데이터 전용
+    )
+
+
+def get_mbti_history_collection():
+    """유저 MBTI 히스토리 저장용 컬렉션"""
+    return _client.get_or_create_collection(
+        name="user_mbti_history",
+        embedding_function=None
+    )
+
+
+def get_hobby_latest_collection():
+    """유저별 최신 취미 저장용 컬렉션"""
+    return _client.get_or_create_collection(
+        name="user_hobby_latest",
+        embedding_function=None
+    )
+
+
+def get_hobby_history_collection():
+    """유저 취미 히스토리 저장용 컬렉션"""
+    return _client.get_or_create_collection(
+        name="user_hobby_history",
+        embedding_function=None
+    )
+
+# chroma run \
+#   --host 0.0.0.0 \
+#   --port 8001 \
+#   --path /Users/yoonjiwon/Desktop/marong/chroma_db
