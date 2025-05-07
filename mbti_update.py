@@ -2,7 +2,7 @@ import re, os
 import torch
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+# from langchain.chains import RunnableSequence
 from langchain.schema import BaseOutputParser
 from langchain.llms.base import LLM
 from typing import List, Optional
@@ -15,7 +15,7 @@ hf_token = os.getenv("HF_TOKEN")
 #  CLOVAX 모델 로딩
 base_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(base_dir, "..", "models", "hyperclovax-1.5b-instruct")
-tokenizer = AutoTokenizer.from_pretrained(model_path, use_auth_token=hf_token)
+tokenizer = AutoTokenizer.from_pretrained(model_path, token=hf_token)
 model = AutoModelForCausalLM.from_pretrained(
     model_path, token=hf_token, torch_dtype=torch.bfloat16, device_map="auto"
 )
@@ -108,11 +108,10 @@ axis_prompt_templates = {
 }
 
 axis_chains = {
-    axis: LLMChain(
-        llm=llm,
-        prompt=axis_prompt_templates[axis],
-        output_parser=MBTIOutputParser(),
-        verbose=True
+    axis: (
+        axis_prompt_templates[axis]
+        | llm
+        | MBTIOutputParser()
     )
     for axis in ["E", "N", "F", "P"]
 }
@@ -123,11 +122,10 @@ def update_mbti(user_feed, current_scores, change_weight=5):
 
     # test 용
     raw_results={} # llm 출력 결과
-    # parsed_results={} # 파상된 결과
+    temp_results={} # 파상된 결과
 
-    temp_results = {}
     for axis in ["E", "N", "F", "P"]:
-        inputs = {
+        prompt_str = {
             "user_feed": user_feed,
             "current_score": current_scores[axis],
             "examples": examples_text
@@ -136,15 +134,17 @@ def update_mbti(user_feed, current_scores, change_weight=5):
         # parsed = axis_chains[axis].run(inputs)
         # temp_results[axis] = parsed
 
-        prompt_str = axis_prompt_templates[axis].format(
-            user_feed = inputs["user_feed"],
-            current_score = inputs["current_score"],
-            examples=inputs["examples"]
-        )
-        raw = llm(prompt_str)
+        prompt_vars = {
+            "user_feed":   user_feed,
+            "current_score": current_scores[axis],
+            "examples":    examples_text
+        }
+
+        prompt_str = axis_prompt_templates[axis].format(**prompt_vars)
+        raw = llm.invoke(prompt_str)
         raw_results[axis] = raw
 
-        parsed = axis_chains[axis].output_parser.parse(raw)
+        parsed = axis_chains[axis].invoke(prompt_vars)
         temp_results[axis] = parsed
 
     # 변동 축 선택
@@ -162,18 +162,12 @@ def update_mbti(user_feed, current_scores, change_weight=5):
         for axis in ["E", "N", "F", "P"]:
             curr = current_scores[axis]
             if axis == chosen:
-                parsed_score = temp_results[axis]["score"] # llm이 예측한 score
-                diff = parsed_score - curr # 변화량 계산
-
-                # diff 기준으로 dalta와 change_flag 결정
-                delta = change_weight if diff > 0 else - change_weight 
+                diff = temp_results[axis]["score"] - curr
+                delta = change_weight if diff > 0 else -change_weight
+                new_score = min(100, max(0, curr + delta))
                 change_flag = "상승" if diff > 0 else "하락"
                 reason = temp_results[axis]["reason"]
-
-                # 점수 업데이트
-                new_score = min(100, max(0, curr + delta))
-
-            else: 
+            else:
                 new_score = curr
                 change_flag = "유지"
                 reason = "변동없음"
