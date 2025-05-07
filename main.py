@@ -43,13 +43,13 @@ class MBTIUpdateService:
         self.hobby_latest_col  = get_hobby_latest_collection()
         self.hobby_history_col = get_hobby_history_collection()
 
+
+    # Users 테이블의 모든 id 조회
     def fetch_all_users(self) -> list[str]:
-        """
-        Users 테이블의 모든 id 조회
-        """
         self.cursor.execute("SELECT id AS user_id FROM Users")
         return [r["user_id"] for r in self.cursor.fetchall()]
 
+    # 모든 user_id에 대한 feed 조회
     def fetch_feed(self, user_id: str) -> str:
         self.cursor.execute(
             "SELECT content FROM Posts WHERE user_id = %s", (user_id,)
@@ -57,15 +57,17 @@ class MBTIUpdateService:
         rows = self.cursor.fetchall()
         return " ".join(r["content"] for r in rows) if rows else ""
 
+    # ChromaDB 조회 - MBTI
     def fetch_prev_scores(self, user_id: str) -> tuple[dict, bool]:
-        # 1) ChromaDB 최신값 조회 → 있으면 기존 유저
+        # ChromaDB 최신값 조회 → 있으면 기존 유저
         recs = self.mbti_latest_col.get(
             where={"user_id": str(user_id)}, limit=1, include=["embeddings"]
         )
         if recs.get("ids"):
             vec = recs["embeddings"][0]
             return dict(zip(["E", "N", "F", "P"], vec)), False
-        # 2) ChromaDB에 없으면 신규 유저: SurveyMBTI 설문 결과 조회
+        
+        # ChromaDB에 없으면 신규 유저: SurveyMBTI 설문 결과 조회
         self.cursor.execute(
             """
             SELECT ei_score, sn_score, tf_score, jp_score
@@ -84,20 +86,23 @@ class MBTIUpdateService:
             "P": row["jp_score"]
         }, True
 
+    # ChromaDB 조회 -> hobby
     def fetch_prev_hobby(self, user_id: str) -> tuple[str | None, bool]:
-        # 1) ChromaDB 최신값 조회 → 있으면 기존 유저
+        # ChromaDB 최신값 조회 → 있으면 기존 유저
         recs = self.hobby_latest_col.get(
             where={"user_id": str(user_id)}, limit=1, include=["metadatas"]
         )
         if recs.get("ids"):
             return recs["metadatas"][0].get("hobby_name"), False
-        # 2) ChromaDB에 없으면 신규 유저: SurveyHobby 설문 결과 조회
+        
+        # ChromaDB에 없으면 신규 유저: SurveyHobby 설문 결과 조회
         self.cursor.execute(
             "SELECT hobby_name FROM SurveyHobby WHERE user_id = %s", (user_id,)
         )
         row = self.cursor.fetchone()
         return row["hobby_name"], True
 
+    # 가져오기
     def run(self, user_id: str):
         feed = self.fetch_feed(user_id)
         if not feed:
@@ -147,6 +152,7 @@ class MBTIUpdateService:
         print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
         print(f"  MBTI 점수: {updated['mbti']}")
         print(f"  취미: {prev_hobby or '없음'}")
+
 
 if __name__ == "__main__":
     config = load_config()
