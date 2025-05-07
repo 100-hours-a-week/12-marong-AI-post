@@ -159,7 +159,7 @@ def update_mbti(user_feed, current_scores, change_weight=5):
 
         chosen = max(diffs, key=diffs.get)
 
-        for axis in ["E", "S", "T", "J"]:
+        for axis in ["E", "N", "F", "P"]:
             curr = current_scores[axis]
             if axis == chosen:
                 parsed_score = temp_results[axis]["score"] # llm이 예측한 score
@@ -182,7 +182,7 @@ def update_mbti(user_feed, current_scores, change_weight=5):
             updated_result ["changes"][axis] = {"변동": change_flag, "이유": reason}
 
     else: 
-        for axis in ["E", "S", "T", "J"]:
+        for axis in ["E", "N", "F", "P"]:
             updated_result["mbti"][axis] = current_scores[axis]
             updated_result["changes"][axis] = {"변동": "유지", "이유": "변동없음"}
 

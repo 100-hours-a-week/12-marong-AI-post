@@ -6,7 +6,7 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 
-from mbti_update_db import update_mbti
+from mbti_update import update_mbti
 from chroma_client_db import (
     get_chroma_client,
     get_mbti_latest_collection,
@@ -64,7 +64,7 @@ class MBTIUpdateService:
         )
         if recs.get("ids"):
             vec = recs["embeddings"][0]
-            return dict(zip(["E", "S", "T", "J"], vec)), False
+            return dict(zip(["E", "N", "F", "P"], vec)), False
         # 2) ChromaDB에 없으면 신규 유저: SurveyMBTI 설문 결과 조회
         self.cursor.execute(
             """
@@ -79,9 +79,9 @@ class MBTIUpdateService:
         row = self.cursor.fetchone()
         return {
             "E": row["ei_score"],
-            "S": row["sn_score"],
-            "T": row["tf_score"],
-            "J": row["jp_score"]
+            "N": row["sn_score"],
+            "F": row["tf_score"],
+            "P": row["jp_score"]
         }, True
 
     def fetch_prev_hobby(self, user_id: str) -> tuple[str | None, bool]:
@@ -110,7 +110,7 @@ class MBTIUpdateService:
 
         # MBTI 업데이트
         updated = update_mbti(feed, prev_scores, self.change_weight)
-        new_vec = [updated["mbti"][k] for k in ["E", "S", "T", "J"]]
+        new_vec = [updated["mbti"][k] for k in ["E", "N", "F", "P"]]
         ts = datetime.now().isoformat()
 
         # MBTI 히스토리 기록
