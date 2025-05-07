@@ -20,7 +20,7 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(base_dir, "..", "models", "hyperclovax-1.5b-instruct")
 tokenizer = AutoTokenizer.from_pretrained(model_path, use_auth_token=hf_token)
 model = AutoModelForCausalLM.from_pretrained(
-    model_path, use_auth_toekn=hf_token, torch_dtype=torch.bfloat16, device_map="auto"
+    model_path, token=hf_token, torch_dtype=torch.bfloat16, device_map="auto"
 )
 
 # LangChain용 커스텀 래퍼
