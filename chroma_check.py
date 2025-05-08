@@ -11,8 +11,8 @@ history_mbti = get_user_history_collection()
 
 
 print("=== USER Latest ===")
-print(latest_mbti.peek(limit=5))
+print(latest_mbti.peek(limit=100))
 
 print("\n=== USER History ===")
-print(history_mbti.peek(limit=5))
+print(history_mbti.peek(limit=100))
 

@@ -101,8 +101,7 @@ class MBTIUpdateService:
             print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
         else:
             prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
-            if isinstance(prev_hobby, list):
-                prev_hobby = ",".join(prev_hobby)
+            hobby_meta = prev_hobby if isinstance(prev_hobby, list) else (prev_hobby or [])
             updated = update_mbti(feed, prev_scores, self.change_weight)
             ts = datetime.now().isoformat()
 
@@ -110,7 +109,7 @@ class MBTIUpdateService:
             common_meta = {
                 "user_id": int(user_id),
                 "timestamp": ts,
-                "hobby_name": prev_hobby or "",
+                "hobby_name": hobby_meta,
                 "ei_score": int(updated["mbti"]["ei_score"]),
                 "sn_score": int(updated["mbti"]["sn_score"]),
                 "tf_score": int(updated["mbti"]["tf_score"]),
