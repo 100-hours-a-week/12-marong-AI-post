@@ -1,6 +1,7 @@
 import os
 import uuid
 import argparse
+import numpy as np
 from datetime import datetime
 
 import mysql.connector
@@ -115,7 +116,7 @@ class MBTIUpdateService:
 
         # MBTI 업데이트
         updated = update_mbti(feed, prev_scores, self.change_weight)
-        new_vec = [updated["mbti"][k] for k in ["E", "N", "F", "P"]]
+        mbti_vec = np.array([updated["mbti"][k] for k in ["E", "N", "F", "P"]])
         ts = datetime.now().isoformat()
 
         # MBTI 히스토리 기록
@@ -123,29 +124,30 @@ class MBTIUpdateService:
             ids=[str(uuid.uuid4())],
             metadatas=[{"user_id": str(user_id), "timestamp": ts, "hobby": prev_hobby or ""}],
             documents=[""],
-            embeddings=[new_vec]
+            embeddings=[mbti_vec]
         )
         # MBTI 최신값 upsert
         self.mbti_latest_col.upsert(
             ids=[str(user_id)],
             metadatas=[{"user_id": str(user_id), "updated_at": ts, "hobby": prev_hobby}],
             documents=[""],
-            embeddings=[new_vec]
+            embeddings=[mbti_vec]
         )
 
         # 취미 히스토리 및 최신값 기록
         if prev_hobby:
+            hobby_vec = np.array([0.0], dtype=float)
             self.hobby_history_col.add(
                 ids=[str(uuid.uuid4())],
                 metadatas=[{"user_id": str(user_id), "timestamp": ts, "hobby_name": prev_hobby}],
                 documents=[""],
-                embeddings=[[0.0]]
+                embeddings=[hobby_vec]
             )
             self.hobby_latest_col.upsert(
                 ids=[str(user_id)],
                 metadatas=[{"user_id": str(user_id), "hobby_name": prev_hobby, "updated_at": ts}],
                 documents=[""],
-                embeddings=[[0.0]]
+                embeddings=[hobby_vec]
             )
 
         # 결과 출력
