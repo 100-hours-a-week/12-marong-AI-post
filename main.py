@@ -102,7 +102,7 @@ class MBTIUpdateService:
         else:
             prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
             if isinstance(prev_hobby, list):
-                prev_hobby = np.array(prev_hobby)
+                prev_hobby = ",".join(prev_hobby)
             updated = update_mbti(feed, prev_scores, self.change_weight)
             ts = datetime.now().isoformat()
 
