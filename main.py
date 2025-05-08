@@ -10,10 +10,8 @@ from dotenv import load_dotenv
 from mbti_update import update_mbti
 from chroma_client_db import (
     get_chroma_client,
-    get_mbti_latest_collection,
-    get_mbti_history_collection,
-    get_hobby_latest_collection,
-    get_hobby_history_collection
+    get_user_latest_collection,
+    get_user_history_collection,
 )
 
 # .env 파일 로드
@@ -39,116 +37,106 @@ class MBTIUpdateService:
         self.cursor = self.mysql_conn.cursor(dictionary=True)
         # ChromaDB 연결
         get_chroma_client()
-        self.mbti_latest_col   = get_mbti_latest_collection()
-        self.mbti_history_col  = get_mbti_history_collection()
-        self.hobby_latest_col  = get_hobby_latest_collection()
-        self.hobby_history_col = get_hobby_history_collection()
+        self.user_latest_col   = get_user_latest_collection()
+        self.user_history_col  = get_user_history_collection()
 
 
     # Users 테이블의 모든 id 조회
-    def fetch_all_users(self) -> list[str]:
+    def fetch_all_users(self) -> list[int]:
         self.cursor.execute("SELECT id AS user_id FROM Users")
         return [r["user_id"] for r in self.cursor.fetchall()]
 
     # 모든 user_id에 대한 feed 조회
-    def fetch_feed(self, user_id: str) -> str:
+    def fetch_feed(self, user_id: int) -> int:
         self.cursor.execute(
             "SELECT content FROM Posts WHERE user_id = %s", (user_id,)
         )
         rows = self.cursor.fetchall()
         return " ".join(r["content"] for r in rows) if rows else ""
+    
 
-    # ChromaDB 조회 - MBTI
-    def fetch_prev_scores(self, user_id: str) -> tuple[dict, bool]:
-        # ChromaDB 최신값 조회 → 있으면 기존 유저
-        recs = self.mbti_latest_col.get(
-            where={"user_id": str(user_id)}, limit=1, include=["embeddings"]
+    def fetch_prev_data(self, user_id: int) -> tuple[dict, int | None, bool]:
+        # ChromaDB 최신값 조회
+        recs = self.user_latest_col.get(
+            where={"user_id": int(user_id)}, limit=1, include=["metadatas"]
         )
         if recs.get("ids"):
-            vec = recs["embeddings"][0]
-            return dict(zip(["E", "N", "F", "P"], vec)), False
-        
-        # ChromaDB에 없으면 신규 유저: SurveyMBTI 설문 결과 조회
-        self.cursor.execute(
-            """
-            SELECT ei_score, sn_score, tf_score, jp_score
-            FROM SurveyMBTI
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (user_id,)
-        )
-        row = self.cursor.fetchone()
-        return {
-            "E": row["ei_score"],
-            "N": row["sn_score"],
-            "F": row["tf_score"],
-            "P": row["jp_score"]
-        }, True
+            meta = recs["metadatas"][0]
+            prev_scores = {
+                "ei_score": meta["ei_score"],
+                "sn_score": meta["sn_score"],
+                "tf_score": meta["tf_score"],
+                "jp_score": meta["jp_score"]
+            }
+            prev_hobby = meta.get("hobby_name") 
+            return prev_scores, prev_hobby, False
 
-    # ChromaDB 조회 -> hobby
-    def fetch_prev_hobby(self, user_id: str) -> tuple[str | None, bool]:
-        # ChromaDB 최신값 조회 → 있으면 기존 유저
-        recs = self.hobby_latest_col.get(
-            where={"user_id": str(user_id)}, limit=1, include=["metadatas"]
-        )
-        if recs.get("ids"):
-            return recs["metadatas"][0].get("hobby_name"), False
-        
-        # ChromaDB에 없으면 신규 유저: SurveyHobby 설문 결과 조회
+        # 신규 유저: 설문 결과 조회
+        # MBTI 설문
         self.cursor.execute(
-            "SELECT hobby_name FROM SurveyHobby WHERE user_id = %s", (user_id,)
+            "SELECT ei_score, sn_score, tf_score, jp_score"
+            " FROM SurveyMBTI WHERE user_id = %s"
+            " ORDER BY created_at DESC LIMIT 1", (user_id,)
         )
-        row = self.cursor.fetchone()
-        return row["hobby_name"], True
+        mbti_row = self.cursor.fetchone()
+        prev_scores = {
+            "ei_score": mbti_row["ei_score"],
+            "sn_score": mbti_row["sn_score"],
+            "tf_score": mbti_row["tf_score"],
+            "jp_score": mbti_row["jp_score"]
+        }
+        # 취미 설문
+        self.cursor.execute(
+            "SELECT hobby_name FROM SurveyHobby"
+            " WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", (user_id,)
+        )
+        hobby_row = self.cursor.fetchone()
+        prev_hobby = hobby_row["hobby_name"] if hobby_row else None
+        return prev_scores, prev_hobby, True
 
-    # 가져오기
-    def run(self, user_id: str):
+    # 가져오기 
+    def run(self, user_id: int):
         feed = self.fetch_feed(user_id)
         if not feed:
             print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
-            return
+        else:
+            prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
+            if isinstance(prev_hobby, list):
+                prev_hobby = np.array(prev_hobby)
+            updated = update_mbti(feed, prev_scores, self.change_weight)
+            ts = datetime.now().isoformat()
 
-        prev_scores, is_new_scores = self.fetch_prev_scores(user_id)
-        prev_hobby,  is_new_hobby  = self.fetch_prev_hobby(user_id)
-        is_new_user = is_new_scores and is_new_hobby
+            # 메타데이터 담기
+            common_meta = {
+                "user_id": int(user_id),
+                "timestamp": ts,
+                "hobby_name": prev_hobby or "",
+                "ei_score": int(updated["mbti"]["ei_score"]),
+                "sn_score": int(updated["mbti"]["sn_score"]),
+                "tf_score": int(updated["mbti"]["tf_score"]),
+                "jp_score": int(updated["mbti"]["jp_score"])
+            }
 
-        # MBTI 업데이트
-        updated = update_mbti(feed, prev_scores, self.change_weight)
-        mbti_vec = np.array([updated["mbti"][k] for k in ["E", "N", "F", "P"]])
-        ts = datetime.now().isoformat()
+            # embeddings에는 [0.0] 하나만 넘기기
+            holder_vec=np.array([0.0], dtype=float)
 
-        # MBTI 히스토리 기록
-        self.mbti_history_col.add(
-            ids=[str(uuid.uuid4())],
-            metadatas=[{"user_id": str(user_id), "timestamp": ts, "hobby": prev_hobby or ""}],
-            documents=[""],
-            embeddings=[mbti_vec]
-        )
-        # MBTI 최신값 upsert
-        self.mbti_latest_col.upsert(
-            ids=[str(user_id)],
-            metadatas=[{"user_id": str(user_id), "updated_at": ts, "hobby": prev_hobby}],
-            documents=[""],
-            embeddings=[mbti_vec]
-        )
-
-        # 취미 히스토리 및 최신값 기록
-        if prev_hobby:
-            hobby_vec = np.array([0.0], dtype=float)
-            self.hobby_history_col.add(
+            # user 히스토리 기록
+            self.user_history_col.add(
                 ids=[str(uuid.uuid4())],
-                metadatas=[{"user_id": str(user_id), "timestamp": ts, "hobby_name": prev_hobby}],
+                metadatas=[common_meta],
                 documents=[""],
-                embeddings=[hobby_vec]
+                embeddings=[holder_vec]
             )
-            self.hobby_latest_col.upsert(
-                ids=[str(user_id)],
-                metadatas=[{"user_id": str(user_id), "hobby_name": prev_hobby, "updated_at": ts}],
-                documents=[""],
-                embeddings=[hobby_vec]
-            )
+
+        # user 최신값
+        latest_meta = {**common_meta, "updated_at": ts }
+        self.user_latest_col.upsert(
+            ids=[str(user_id)],
+            metadatas=[latest_meta],
+            documents=[""],
+            embeddings=[holder_vec]
+        )
+
 
         # 결과 출력
         print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")

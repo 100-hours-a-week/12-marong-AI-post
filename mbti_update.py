@@ -2,7 +2,6 @@ import re, os
 import torch
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
-# from langchain.chains import RunnableSequence
 from langchain.schema import BaseOutputParser
 from langchain.llms.base import LLM
 from typing import List, Optional
@@ -101,10 +100,10 @@ axis_prompt_templates = {
         """
     )
         for axis, (left, right, question) in {
-        "E": ("내향성(I)", "외향성(E)", "내면활동에 집중하고 조용하며 에너지 회복을 위해 혼자만의 시간이 필요, 외부 자극을 통해 에너지를 얻고 사교적이며 활동적"),
-        "N": ("직관(N)", "감각(S)", "가능성과 비유를 통해 큰 그림을 보고 상상력을 발휘, 오감에 의존해 현재 사실과 디테일을 중시"),
-        "F": ("감정(F)", "사고(T)", "정서와 인간관계를 중시해 판단, 객관적 사실과 논리에 기반해 판단"),
-        "P": ("인식(P)", "판단(J)", "유연하게 상황에 맞춰 즉흥적으로 행동하여 변화와 호기심 추구, 계획적이고 체계적으로 활동하며 빠른 결정을 선호")
+        "ei_score": ("내향성(I)", "외향성(E)", "내면활동에 집중하고 조용하며 에너지 회복을 위해 혼자만의 시간이 필요, 외부 자극을 통해 에너지를 얻고 사교적이며 활동적"),
+        "sn_score": ("직관(N)", "감각(S)", "가능성과 비유를 통해 큰 그림을 보고 상상력을 발휘, 오감에 의존해 현재 사실과 디테일을 중시"),
+        "tf_score": ("감정(F)", "사고(T)", "정서와 인간관계를 중시해 판단, 객관적 사실과 논리에 기반해 판단"),
+        "jp_score": ("인식(P)", "판단(J)", "유연하게 상황에 맞춰 즉흥적으로 행동하여 변화와 호기심 추구, 계획적이고 체계적으로 활동하며 빠른 결정을 선호")
         }.items()
 }
 
@@ -114,7 +113,7 @@ axis_chains = {
         | llm
         | MBTIOutputParser()
     )
-    for axis in ["E", "N", "F", "P"]
+    for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]
 }
 
 def update_mbti(user_feed, current_scores, change_weight=5):
@@ -125,15 +124,12 @@ def update_mbti(user_feed, current_scores, change_weight=5):
     raw_results={} # llm 출력 결과
     temp_results={} # 파상된 결과
 
-    for axis in ["E", "N", "F", "P"]:
+    for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
         prompt_str = {
             "user_feed": user_feed,
             "current_score": current_scores[axis],
             "examples": examples_text
         }
-
-        # parsed = axis_chains[axis].run(inputs)
-        # temp_results[axis] = parsed
 
         prompt_vars = {
             "user_feed":   user_feed,
@@ -160,7 +156,7 @@ def update_mbti(user_feed, current_scores, change_weight=5):
 
         chosen = max(diffs, key=diffs.get)
 
-        for axis in ["E", "N", "F", "P"]:
+        for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
             curr = current_scores[axis]
             if axis == chosen:
                 diff = temp_results[axis]["score"] - curr
@@ -177,7 +173,7 @@ def update_mbti(user_feed, current_scores, change_weight=5):
             updated_result ["changes"][axis] = {"변동": change_flag, "이유": reason}
 
     else: 
-        for axis in ["E", "N", "F", "P"]:
+        for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
             updated_result["mbti"][axis] = current_scores[axis]
             updated_result["changes"][axis] = {"변동": "유지", "이유": "변동없음"}
 

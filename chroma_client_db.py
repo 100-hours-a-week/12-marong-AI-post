@@ -25,38 +25,17 @@ def get_embedding_function():
 
 
 
-def get_mbti_latest_collection():
+def get_user_latest_collection():
     """유저별 최신 MBTI 저장용 컬렉션"""
     return _client.get_or_create_collection(
-        name="user_mbti_latest",
+        name="user_latest",
         embedding_function=None  # 메타데이터 전용
     )
 
 
-def get_mbti_history_collection():
+def get_user_history_collection():
     """유저 MBTI 히스토리 저장용 컬렉션"""
     return _client.get_or_create_collection(
-        name="user_mbti_history",
+        name="user_history",
         embedding_function=None
     )
-
-
-def get_hobby_latest_collection():
-    """유저별 최신 취미 저장용 컬렉션"""
-    return _client.get_or_create_collection(
-        name="user_hobby_latest",
-        embedding_function=None
-    )
-
-
-def get_hobby_history_collection():
-    """유저 취미 히스토리 저장용 컬렉션"""
-    return _client.get_or_create_collection(
-        name="user_hobby_history",
-        embedding_function=None
-    )
-
-# chroma run \
-#   --host 0.0.0.0 \
-#   --port 8001 \
-#   --path /Users/yoonjiwon/Desktop/marong/chroma_db
