@@ -9,7 +9,7 @@ _embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
 # HttpClient 인스턴스 생성
 _client = HttpClient(
     host="localhost",
-    port=8000,
+    port=8001,
     ssl=False
 )
 
