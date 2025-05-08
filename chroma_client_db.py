@@ -1,5 +1,3 @@
-## 아래 주석 풀고 터미널에 입력하면 8001로 크로마디비 로컬서버 열림!
-
 from chromadb import HttpClient
 from chromadb.utils import embedding_functions
 
@@ -11,9 +9,11 @@ _embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
 # HttpClient 인스턴스 생성
 _client = HttpClient(
     host="localhost",
-    port=8001,
+    port=8000,
     ssl=False
 )
+
+# 유사도 검색 collection name: mbti_feeds
 
 def get_chroma_client():
     """Chroma DB HttpClient 인스턴스 반환"""
