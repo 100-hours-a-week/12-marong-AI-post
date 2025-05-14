@@ -1,4 +1,4 @@
-# chroma server 실행 파일
+## chroma server 실행 파일
 
 import subprocess
 from chromadb import HttpClient

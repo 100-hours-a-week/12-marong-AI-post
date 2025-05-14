@@ -1,4 +1,4 @@
-# main.py 실행시 연결되는 chromadb
+## main.py 실행시 연결되는 chromadb
 
 import os
 from dotenv import load_dotenv
