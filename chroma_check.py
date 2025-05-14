@@ -1,6 +1,6 @@
 ## chroma db에 업데이트 잘 됐는지 확인하는 파일
 
-from chroma_client_db import (
+from chroma_client import (
     get_user_latest_collection,
     get_user_history_collection,
 )
