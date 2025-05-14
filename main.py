@@ -8,7 +8,7 @@ import mysql.connector
 from dotenv import load_dotenv
 
 from mbti_update import update_mbti
-from chroma_client_db import (
+from chroma_client import (
     get_chroma_client,
     get_user_latest_collection,
     get_user_history_collection,
