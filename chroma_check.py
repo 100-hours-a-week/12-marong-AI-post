@@ -1,7 +1,7 @@
 ## chroma db에 업데이트 잘 됐는지 확인 및 json으로 저장
 
+import os
 import json
-import numpy as np
 from chroma_client import (
     get_user_latest_collection,
     get_user_history_collection,
@@ -56,8 +56,11 @@ for item in latest_items + history_items:
     
 
 # 파일 저장
+output_dir = 'mbti_user'
+os.makedirs(output_dir, exist_ok=True)
+
 for user_id, entries in data_by_user.items():
-    filename=f"mbti_user_{user_id}.json"
+    filename=os.path.join(output_dir, f"mbti_user_{user_id}.json")
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
     print("save file")
