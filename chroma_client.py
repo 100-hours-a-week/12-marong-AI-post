@@ -1,23 +1,25 @@
-from chromadb import HttpClient
+# main.py 실행시 연결되는 chromadb
+
+import os
+from dotenv import load_dotenv
 from chromadb.utils import embedding_functions
+from chromadb import HttpClient
 
 # 기존 임베딩 함수
 _embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name="sentence-transformers/paraphrase-MiniLM-L6-v2"
 )
 
-# HttpClient 인스턴스 생성
-_client = HttpClient(
-    host="localhost",
-    port=8001,
-    ssl=False
-)
+load_dotenv()
 
-# 유사도 검색 collection name: mbti_feeds
 
 def get_chroma_client():
-    """Chroma DB HttpClient 인스턴스 반환"""
-    return _client
+    return HttpClient(
+        host = os.getenv("CHROMA_HOST"),
+        port = os.getenv("CHROMA_PORT"),
+    )
+    
+
 
 def get_embedding_function():
     """문장 임베딩 함수 인스턴스 반환"""
@@ -26,16 +28,11 @@ def get_embedding_function():
 
 
 def get_user_latest_collection():
-    """유저별 최신 MBTI 저장용 컬렉션"""
-    return _client.get_or_create_collection(
-        name="user_latest",
-        embedding_function=None  # 메타데이터 전용
+    return get_chroma_client().get_or_create_collection(
+        name="user_latest", embedding_function=None
     )
 
-
 def get_user_history_collection():
-    """유저 MBTI 히스토리 저장용 컬렉션"""
-    return _client.get_or_create_collection(
-        name="user_history",
-        embedding_function=None
+    return get_chroma_client().get_or_create_collection(
+        name="user_history", embedding_function=None
     )
