@@ -6,7 +6,7 @@ from langchain.schema import BaseOutputParser
 from langchain.llms.base import LLM
 from typing import List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from chroma_client_db import get_chroma_client, get_embedding_function  
+from chroma_client import get_chroma_client, get_embedding_function  
 
 load_dotenv()
 hf_token = os.getenv("HF_TOKEN")
