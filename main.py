@@ -8,7 +8,7 @@ import mysql.connector
 from dotenv import load_dotenv
 
 from mbti_update import update_mbti
-from chroma_client_db import (
+from chroma_client import (
     get_chroma_client,
     get_user_latest_collection,
     get_user_history_collection,
@@ -20,13 +20,15 @@ load_dotenv()
 def load_config():
     return {
         "db": {
-            "host":     os.environ["DB_HOST"],
-            "user":     os.environ["DB_USER"],
+            "user": os.environ["DB_USER"],
+            "host": os.environ["DB_HOST"],
+            "user": os.environ["DB_USER"],
+            "port": os.environ["DB_PORT"],
             "password": os.environ["DB_PASSWORD"],
             "database": os.environ["DB_NAME"],
             "charset":  os.environ.get("DB_CHARSET", "utf8mb4")
         },
-        "change_weight": int(os.environ.get("CHANGE_WEIGHT", 5)),
+        "change_weight": int(os.environ.get("CHANGE_WEIGHT")),
     }
 
 class MBTIUpdateService:

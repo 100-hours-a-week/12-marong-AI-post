@@ -1,3 +1,5 @@
+## clova 모델 다운로드
+
 import os
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
