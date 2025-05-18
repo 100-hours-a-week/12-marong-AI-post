@@ -48,9 +48,9 @@ llm = CLOVAXLangChainWrapper()
 
 chroma_client = get_chroma_client()  
 embedding_func = get_embedding_function()  
-collection = chroma_client.get_or_create_collection(  
+collection = chroma_client.get_collection(  
     name="mbti_feeds",  
-    embedding_function=embedding_func  
+    # embedding_function=embedding_func  
 )  
 
 # 유사 피드 + MBTI 라벨 함께 가져오기
