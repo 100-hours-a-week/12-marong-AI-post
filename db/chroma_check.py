@@ -1,8 +1,9 @@
 ## chroma db에 업데이트 잘 됐는지 확인 및 json으로 저장
+## python -m db/chroma_check.py
 
 import os
 import json
-from chroma_client import (
+from db.chroma_client import (
     get_user_latest_collection,
     get_user_history_collection,
 )

@@ -1,8 +1,0 @@
-.DS_Store
-.env
-Marong.sql
-chroma.sqlite3
-README.md
-__pycache__/
-chroma.log
-mbti_user/
