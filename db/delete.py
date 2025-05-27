@@ -1,6 +1,6 @@
 ## ChromaDB reset
 
-from db.chroma_client import get_chroma_client
+from chroma_client import get_chroma_client
 
 # ChromaDB 클라이언트 불러오기
 client = get_chroma_client()
