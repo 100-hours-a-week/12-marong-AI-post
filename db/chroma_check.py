@@ -3,7 +3,7 @@
 
 import os
 import json
-from db.chroma_client import (
+from chroma_client import (
     get_user_latest_collection,
     get_user_history_collection,
 )
