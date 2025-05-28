@@ -43,6 +43,10 @@ class Chain:
             "user_feed": user_feed,
             "current_score": current_score,
             "examples": examples})
+        
+        # print(f"DEBUG[{axis}] LLM Raw Output:\n{raw}\n{'-'*40}")
+        # print(f"DEBUG[{axis}] Parsed Output:\n{parsed}\n{'='*40}")
+
         return {"raw": raw, "parsed": parsed}
 
 
@@ -88,21 +92,16 @@ class MBTIUpdater:
                 else:
                     new_score = curr
                     change_flag = "유지"
-                    reason = "변동없음"
+                    reason = "변화없음"
 
                 update_mbti["mbti"][axis] = new_score
-                update_mbti["changes"][axis] = {"변동": change_flag, "이유": reason}
+                update_mbti["changes"][axis] = {"변화": change_flag, "이유": reason}
         else:
             for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
                 update_mbti["mbti"][axis] = current_scores[axis]
-                update_mbti["changes"][axis] = {"변동": "유지", "이유": "변동없음"}
+                update_mbti["changes"][axis] = {"변화": "유지", "이유": "변화없음"}
 
         # 유사 예시 포함
         update_mbti["similar_examples"] = [{"text": doc, "a_mbti": mbti} for doc, mbti in examples]
-
-        # 디버그 출력
-        print("\n LLM Raw Outputs:")
-        for axis, raw in raw_outputs.items():
-            print(f"- {axis}: {raw}\n{'-'*30}")
 
         return update_mbti
