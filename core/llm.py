@@ -25,7 +25,7 @@ class CLOVAXLangChainWrapper(LLM):
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         chat = [
             {"role": "tool_list", "content": ""},
-            {"role": "system", "content": "AI 언어모델이 하는 일은 사용자 피드에 맞춰서 적절한 mbti 수치를 바꿔주는 일이다."},
+            {"role": "system", "content": "AI 언어모델이 하는 일은 마니또 미션을 수행한 사용자 피드에 맞춰서 적절한 mbti 수치를 바꿔주는 일이다."},
             {"role": "user", "content": prompt},
         ]
         inputs = tokenizer.apply_chat_template(
@@ -46,14 +46,36 @@ class CLOVAXLangChainWrapper(LLM):
 
 llm = CLOVAXLangChainWrapper()
 
-#  출력 파서
-class MBTIOutputParser(BaseOutputParser):
+# 출력 파서
+class MBTIOutputParser(BaseOutputParser):    
     def parse(self, text: str):
-        score_match = re.search(r"점수\s*[:：]?[\s]*(\d+)", text)
-        change_match = re.search(r"변동\s*[:：]?[\s]*(상승|하락|유지)", text)
-        reason_match = re.search(r"이유\s*[:：]?[\s]*(.*)", text)
+        score = None
+        change = "유지" 
+        reason = ""      
+
+        # 줄 단위 분할
+        for line in text.splitlines():
+            # score
+            m_score = re.match(r"^점수\s*[:]?[\s]*(\d+)", line)
+            if m_score:
+                score = int(m_score.group(1))
+                continue
+
+            # change
+            m_change = re.match(r"^변화\s*[:]?[\s]*(상승|하락|유지)", line)
+            if m_change:
+                change = m_change.group(1)
+                continue
+
+            # reason
+            m_reason = re.match(r"^이유\s*[:]?[\s]*(.*)", line)
+            if m_reason:
+                reason = m_reason.group(1).strip()
+                continue
+
+        # 반환 시에도 항상 정의된 변수 사용
         return {
-            "score": int(score_match.group(1)) if score_match else None,
-            "change": change_match.group(1) if change_match else "유지",
-            "reason": reason_match.group(1).strip() if reason_match else ""
+            "score": score,
+            "change": change,
+            "reason": reason
         }

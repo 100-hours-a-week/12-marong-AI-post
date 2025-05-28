@@ -5,26 +5,30 @@ def get_axis_prompt_templates():
         axis: PromptTemplate(
             input_variables=["user_feed", "current_score", "examples"],
             template=f"""
-            너는 심리학자야.
-            다음 피드 내용을 바탕으로 '{left} vs {right}' 중 어떤 성향이 더 강한지 판단해줘.
+            [기존점수]
+            {{current_score}}
 
-            기존 점수는 {{current_score}}야.
-
-            성향 판단 방법:
-            - '{right}' 성향에 더 가깝다고 판단되면 점수를 **상승**시켜. (점수 증가)
-            - '{left}' 성향에 더 가깝다고 판단되면 점수를 **하락**시켜. (점수 하락)
-            - 명확히 판단하기 어렵거나 중립적이라면 점수를 유지해.
-
-            [유사 피드 예시]
+            [유사 피드]
             {{examples}}
 
             [유저 피드]
             {{user_feed}}
 
+
+
+            [예측방식]
+            1) 1. '{left}' : **-5점**, '유지' : +0점, '{right}' : **+5점**  
+            2) 기존 점수({{current_score}}) 에 위 변화량을 더해서 최종 점수를 계산  
+
+            예시1) 이전 점수 40 → 예측 45 (상승)  
+            예시2) 이전 점수 70 → 예측 70 (유지)  
+            예시3) 이전 점수 80 → 예측 75 (하락)    
+                    
+
             결과 형식:
             점수: (숫자)
-            변동: (상승/하락/유지)
-            이유: (간단하고 논리적인 설명)
+            변화: (하락/유지/상승)
+            이유: (위처럼 판단한 간단하고 논리적인 설명)
             """
         )
         for axis, (left, right, left_desc, right_desc) in {
