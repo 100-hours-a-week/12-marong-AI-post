@@ -2,7 +2,11 @@
 .env
 Marong.sql
 chroma.sqlite3
-README.md
-__pycache__/
 chroma.log
 mbti_user/
+chroma_db/
+models/hyperclovax-1.5b-instruct
+merged_chroma_db/
+__pycache__/
+core/__pycache__/
+db/__pycache__/

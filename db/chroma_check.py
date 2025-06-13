@@ -1,4 +1,5 @@
 ## chroma db에 업데이트 잘 됐는지 확인 및 json으로 저장
+## python db/chroma_check.py
 
 import os
 import json
@@ -43,12 +44,12 @@ def to_items(raw):
         })
     return items
 
-latest_items = to_items(latest_raw)
+# latest_items = to_items(latest_raw)
 history_items = to_items(history_raw)
 
 # user_id별 항목 그룹화 
 data_by_user = {}
-for item in latest_items + history_items:
+for item in history_items:
     user_id = item['metadata'].get('user_id')
     if not user_id:
         continue

@@ -1,5 +1,5 @@
 # 12-marong-AI-post
-<img width="600" alt="스크린샷 2025-04-29 오후 8 22 39" src="https://github.com/user-attachments/assets/3b441d91-f6f0-4ccc-9e61-0b22ca4617e0" />
+<img width="1273" alt="스크린샷 2025-06-01 오전 5 04 20" src="https://github.com/user-attachments/assets/1bfffd0c-a2bd-4d18-bdc7-f8f3106e470a" />
 
 
 # 📍 Overview
