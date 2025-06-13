@@ -7,8 +7,8 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 
-from mbti_update import update_mbti
-from chroma_client import (
+from core.update_mbti import MBTIUpdater
+from db.chroma_client import (
     get_chroma_client,
     get_user_latest_collection,
     get_user_history_collection,
@@ -34,6 +34,9 @@ def load_config():
 class MBTIUpdateService:
     def __init__(self, config):
         self.change_weight = config["change_weight"]
+        # MBTIUpdater
+        self.updater = MBTIUpdater(change_weight = self.change_weight)
+
         # MySQL 연결
         self.mysql_conn = mysql.connector.connect(**config["db"])
         self.cursor = self.mysql_conn.cursor(dictionary=True)
@@ -104,7 +107,7 @@ class MBTIUpdateService:
         else:
             prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
             hobby_meta = prev_hobby if isinstance(prev_hobby, list) else (prev_hobby or [])
-            updated = update_mbti(feed, prev_scores, self.change_weight)
+            updated = self.updater.update_mbti(feed, prev_scores)
             ts = datetime.now().isoformat()
 
             # 메타데이터 담기
@@ -141,8 +144,8 @@ class MBTIUpdateService:
 
         # 결과 출력
         print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
-        print(f"  MBTI 점수: {updated['mbti']}")
-        print(f"  취미: {prev_hobby or '없음'}")
+        print(f"MBTI 점수: {updated['mbti']}")
+        print(f"취미: {prev_hobby or '없음'}")
 
 
 if __name__ == "__main__":
