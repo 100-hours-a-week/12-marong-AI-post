@@ -32,10 +32,7 @@ class CLOVAXLangChainWrapper(LLM):
             chat, add_generation_prompt=True, return_dict=True, return_tensors="pt"
         ).to(model.device)
         output_ids = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            stop_strings=["<|endofturn|>", "<|stop|>"],
-            tokenizer=tokenizer
+            **inputs, max_new_tokens=512, stop_strings=["<|endofturn|>", "<|stop|>"], tokenizer=tokenizer
         )
         decoded = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
         return decoded[0]

@@ -28,7 +28,7 @@ def get_axis_prompt_templates():
             결과 형식:
             점수: (숫자)
             변화: (하락/유지/상승)
-            이유: (위처럼 판단한 간단하고 논리적인 설명)
+            이유: ~한 이유로 ~문장이 ~하게 해석되어 점수를 ~함.' 형태로 요약해주세요. 문장은 하나만 사용하세요.
             """
         )
         for axis, (left, right, left_desc, right_desc) in {

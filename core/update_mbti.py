@@ -1,8 +1,35 @@
 import re
 from typing import Dict, List, Tuple
 from db.chroma_client import get_chroma_client
-from .llm import llm, MBTIOutputParser
-from .prompts import get_axis_prompt_templates
+from .graph import run_mbti_update_with_graph
+from .chain import Chain
+
+# 점수 업데이트
+class MBTIScoreUpdater:
+    axis_map = {
+        "EI": "ei_score",
+        "SN": "sn_score",
+        "TF": "tf_score",
+        "JP": "jp_score"
+    }
+
+    @staticmethod
+    def apply_reason(reason: str, prev_scores: Dict[str, int]) -> Dict[str, int]:
+        axis_match = re.search(r"\[([A-Z]{2}) 축\]", reason)
+        if not axis_match:
+            raise ValueError("축명을 찾을 수 없습니다.")
+        axis_key = axis_match.group(1)
+        score_key = MBTIScoreUpdater.axis_map.get(axis_key)
+
+        score_change_match = re.search(r"점수를\s*([+-]?\d+)\s*함", reason)
+        if not score_change_match:
+            raise ValueError("점수 변화를 찾을 수 없습니다.")
+        delta = int(score_change_match.group(1))
+
+        new_score = max(0, min(100, prev_scores[score_key] + delta))
+        updated_scores = prev_scores.copy()
+        updated_scores[score_key] = new_score
+        return updated_scores
 
 
 # ChromaDB에서 유사 피드와 라벨 조회
@@ -21,35 +48,6 @@ class Retriever:
         return [(doc, meta.get("a_mbti", "UNKNOWN")) for doc, meta in zip(docs, metas)]
 
 
-# 축별 chain, llm 호출, 파생
-class Chain:
-    def __init__(self):
-        self.templates = get_axis_prompt_templates()
-        self.chains = {
-            axis: (self.templates[axis] | llm | MBTIOutputParser())
-            for axis in self.templates
-        }
-        
-    
-    def run(self, axis: str, user_feed: str, current_score: int, examples: str) -> Dict:
-        prompt = self.templates[axis].format(
-            user_feed = user_feed,
-            current_score = current_score,
-            examples = examples
-        )
-        raw = llm.invoke(prompt)
-
-        parsed = self.chains[axis].invoke({
-            "user_feed": user_feed,
-            "current_score": current_score,
-            "examples": examples})
-        
-        # print(f"DEBUG[{axis}] LLM Raw Output:\n{raw}\n{'-'*40}")
-        # print(f"DEBUG[{axis}] Parsed Output:\n{parsed}\n{'='*40}")
-
-        return {"raw": raw, "parsed": parsed}
-
-
 # mbti update
 class MBTIUpdater:
     def __init__(self, change_weight: int = 5):
@@ -62,46 +60,43 @@ class MBTIUpdater:
         examples = self.retriever.get_similar(user_feed)
         examples_text = "\n".join([f"- ({mbti}) {doc}" for doc, mbti in examples])
 
-        raw_outputs={} # llm 출력 결과
-        parsed_outputs={} # 파상된 결과
+        # langGraph로 최종 점수 결정
+        final_result = run_mbti_update_with_graph(
+            user_feed = user_feed,
+            current_scores=current_scores,
+            examples_text = examples_text,
+            change_weight = self.change_weight
+        )
 
+        axis_reason_map = final_result["axis_reason_map"]  
+        parsed_outputs = final_result["parsed_outputs"]
 
-        # chain 실행
-        for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
-            result = self.chain.run(axis, user_feed, current_scores[axis], examples_text)
-            raw_outputs[axis] = result["raw"]
-            parsed_outputs[axis] = result["parsed"]
+        updated_scores = current_scores.copy()
+        changes = {}
 
-        # 변화 축 선택 및 점수 조정
-        candidates = {axis: p for axis, p in parsed_outputs.items()
-                      if p.get("change") in ["상승", "하락"] and p.get("score") is not None}
-        update_mbti = {"mbti": {}, "changes": {}, "similar_examples": []}
+        for axis_key, reason in axis_reason_map.items():
+            axis_code = axis_key.upper()
+            score_key = {
+                "EI": "ei_score",
+                "SN": "sn_score",
+                "TF": "tf_score",
+                "JP": "jp_score"
+            }[axis_code]
 
-        if candidates:
-            diffs = {axis: abs(p["score"] - current_scores[axis]) for axis, p in candidates.items()}
-            chosen = max(diffs, key=diffs.get)
+            # 점수 업데이트
+            predicted_score = parsed_outputs[score_key]["score"]
+            updated_scores[score_key] = predicted_score
 
-            for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
-                curr = current_scores[axis]
-                if axis == chosen:
-                    diff = parsed_outputs[axis]["score"] - curr
-                    delta = self.change_weight if diff > 0 else -self.change_weight
-                    new_score = min(100, max(0, curr + delta))
-                    change_flag = "상승" if diff > 0 else "하락"
-                    reason = parsed_outputs[axis]["reason"]
-                else:
-                    new_score = curr
-                    change_flag = "유지"
-                    reason = "변화없음"
+            # 변화 방향
+            change = parsed_outputs[score_key]["change"]
 
-                update_mbti["mbti"][axis] = new_score
-                update_mbti["changes"][axis] = {"변화": change_flag, "이유": reason}
-        else:
-            for axis in ["ei_score", "sn_score", "tf_score", "jp_score"]:
-                update_mbti["mbti"][axis] = current_scores[axis]
-                update_mbti["changes"][axis] = {"변화": "유지", "이유": "변화없음"}
+            if score_key == final_result["chosen_axis"]:
+                변화 = "상승" if change == "상승" else "하락"
+                changes[score_key] = {"변화": 변화, "이유": reason}
+            else:
+                changes[score_key] = {"변화": "유지", "이유": "변화없음"}
 
-        # 유사 예시 포함
-        update_mbti["similar_examples"] = [{"text": doc, "a_mbti": mbti} for doc, mbti in examples]
-
-        return update_mbti
+        return {
+            "mbti": updated_scores,
+            "reason": changes,
+        }
