@@ -11,9 +11,9 @@ def choose_axis_and_update(state: Dict) -> Dict:
     current_scores = state["current_scores"]
 
     # 디버깅
-    print("LLM Raw Outputs")
-    for axis in AXIS:
-        print(f"{axis}: {state['raw_outputs'].get(axis)}")
+    # print("LLM Raw Outputs")
+    # for axis in AXIS:
+    #     print(f"{axis}: {state['raw_outputs'].get(axis)}")
 
     print("Parsed Outputs")
     for axis in AXIS:
@@ -51,10 +51,7 @@ def choose_axis_and_update(state: Dict) -> Dict:
     }
     chosen = max(diffs, key=diffs.get)
 
-    # 점수 계산
-    diff = parsed_outputs[chosen]["score"] - current_scores[chosen]
-    delta = state["change_weight"] if diff > 0 else -state["change_weight"]
-    new_score = min(100, max(0, current_scores[chosen] + delta))
+
 
     # 각 축의 reason 수집
     axis_reason_map = {
@@ -62,61 +59,65 @@ def choose_axis_and_update(state: Dict) -> Dict:
         for axis in AXIS
     }
 
+
     chosen_axis_label = chosen.replace("_score", "").upper()
     reasoning_prompt = (
-    '''
-    다음은 사용자의 피드에 대해 MBTI 각 축별로 AI가 판단한 분석 결과입니다:
+        '''
+        다음은 MBTI 4개 축에 대한 분석 결과입니다:
 
-        {각 축별 분석 결과 예시}
-        - [EI 축]: {axis_reason_map.get('EI', '')}
-        - [SN 축]: {axis_reason_map.get('SN', '')}
-        - [TF 축]: {axis_reason_map.get('TF', '')}
-        - [JP 축]: {axis_reason_map.get('JP', '')}
+        {chr(10).join([f"**[{axis.replace('_score', '').upper()} 축]** {parsed_outputs[axis]['reason']}" for axis in AXIS])}
 
-        위 분석 중 '**{chosen_axis_label}**' 축에서 점수 변화가 가장 컸습니다.
-        따라서 해당 축을 선택했으며, 아래의 조건에 따라 이 축의 점수 변화 이유를 1문장으로 요약해주세요.
+        위 분석 중 '{chosen_axis_label}' 축에서 점수 변화가 가장 컸습니다.
+        이 축의 점수 변화 이유를 다음 형식에 맞춰 정확히 1문장으로 설명해주세요:
 
-        ---
+        **필수 형식:** ~한 이유로 '구체적인 문장'이 {chosen_axis_label}적으로 해석되어 점수를 ±N함.
 
-        [요약 조건]
-        - 반드시 아래 형식을 따를 것:  
-        **[축명]** ~한 이유로 '~문장~'이 ~하게 해석되어 점수를 ±5함.
-        - **[축명]**은 [EI 축], [SN 축], [TF 축], [JP 축] 중 하나
-        - 문장은 **하나만** 사용할 것
-        - 점수는 E, N, F, P 쪽으로 갈수록 높아짐
-        - **다른 축 관련 표현은 절대 포함하지 말 것**
-
-        ---
-
-        [형식 예시]
-        - [EI 축]: 밝은 인사를 하는 '오늘 다들 안녕~!'이라는 문장이 외향적으로 해석되어 점수를 +5함.
-        - [SN 축]: 추상적인 생각을 담은 '시간은 멈춘 듯 흘러갔다'라는 문장이 직관적으로 해석되어 점수를 +5함.
-        - [TF 축]: 감정을 중시하는 '나는 언제나 다른 사람의 기분을 먼저 생각해요'라는 문장이 감정형으로 해석되어 점수를 +5함.
-        - [JP 축]: 계획보다는 흐름을 따르는 '계획 없이 흘러가는 하루가 좋아요'라는 문장이 인식형으로 해석되어 점수를 +5함.
-
-        ---
-
-        [출력 예시]
-        **[SN 축]** 상징적인 단어를 사용했다는 이유로 '머릿속이 우주처럼 느껴졌다'는 문장이 직관적으로 해석되어 점수를 +5함."
+        **출력 예시:**
+        - 상징적 표현을 사용했다는 이유로 '머릿속이 우주처럼 느껴졌다'는 문장이 N적으로 해석되어 점수를 +5함.
+        - 계획적 행동을 언급했다는 이유로 '일정을 미리 짜두었다'는 문장이 J적으로 해석되어 점수를 +5함.
         '''
         )
 
+    # final_prompt = reasoning_prompt.format(
+    #     parsed_output=parsed_output_text,
+    #     chosen_axis_label=chosen_axis_label
+    # )
+
+    
     try:
-        final_reason = llm._call(reasoning_prompt).strip()
+        # 프롬프트 안나오고 결과만 디코딩
+        input_ids = llm.tokenizer(reasoning_prompt, return_tensors="pt").input_ids.to(llm.model.device)
+        input_length = input_ids.shape[1]
+
+        output_ids = llm.model.generate(
+            input_ids=input_ids,
+            max_new_tokens=128,
+            do_sample=False,
+            pad_token_id=llm.tokenizer.pad_token_id,
+            eos_token_id=llm.tokenizer.eos_token_id,
+        )
+
+        # 프롬프트 이후 출력만 디코딩
+        if len(output_ids[0]) > input_length:
+            final_reason = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
+        else:
+            final_reason = llm.tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
 
         if chosen_axis_label not in final_reason:
             raise ValueError("LLM 요약 문장에 선택된 축이 명시되지 않았습니다.")
-            
-    except Exception as e:
-        final_reason = f"[{chosen.replace('_score', '').upper()} 축 {'상승' if delta > 0 else '하락'}] 이유를 생성하는 도중 오류가 발생했습니다: {str(e)}"
 
+    except Exception as e:
+        final_reason = f"[{chosen_axis_label} 축] 이유를 생성하는 도중 오류가 발생했습니다: {str(e)}"
+
+
+    updated_scores = {
+        axis: parsed_outputs[axis]["score"]
+        for axis in AXIS
+    }
 
     # 결과 저장
     state["final_result"] = {
-        "updated_scores": {
-            axis: new_score if axis == chosen else current_scores[axis]
-            for axis in current_scores
-        },
+        "updated_scores": updated_scores,
         "chosen_axis": chosen,
         "reason": final_reason,
         "parsed_outputs": state["parsed_outputs"]
@@ -125,7 +126,6 @@ def choose_axis_and_update(state: Dict) -> Dict:
     print("\n Final Result")
     print(state["final_result"])
     return state
-
 
 
 def build_mbti_graph(chain: Chain):
