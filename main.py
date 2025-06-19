@@ -146,6 +146,7 @@ class MBTIUpdateService:
         print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
         print(f"MBTI 점수: {updated['mbti']}")
         print(f"취미: {prev_hobby or '없음'}")
+        print(f"이유: {updated['final_reason']}")
 
 
 if __name__ == "__main__":

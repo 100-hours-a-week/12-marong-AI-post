@@ -13,15 +13,6 @@ from dotenv import load_dotenv
 load_dotenv()
 hf_token = os.getenv("HF_TOKEN")
 
-
-# # 모델 로딩
-# base_dir = os.path.dirname(os.path.abspath(__file__))
-# model_path = os.path.join(base_dir,  "../models", "hyperclovax-1.5b-instruct")
-# tokenizer = AutoTokenizer.from_pretrained(model_path, token=hf_token)
-# model = AutoModelForCausalLM.from_pretrained(
-#     model_path, token=hf_token, torch_dtype=torch.bfloat16, device_map="auto"
-# )
-
 # 커스텀 래퍼
 class CLOVAXLangChainWrapper(LLM):
     _tokenizer: AutoTokenizer = PrivateAttr()
@@ -47,7 +38,7 @@ class CLOVAXLangChainWrapper(LLM):
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         chat = [
             {"role": "tool_list", "content": ""},
-            {"role": "system", "content": "AI 언어모델이 하는 일은 마니또 미션을 수행한 사용자 피드에 맞춰서 적절한 mbti 수치를 바꿔주는 일이다."},
+            {"role": "system", "content": "AI 언어모델이 하는 일은 마니또 미션을 수행한 사용자 피드에 맞춰서 적절한 mbti 수치를 바꿔주는 일이야."},
             {"role": "user", "content": prompt},
         ]
         inputs = self._tokenizer.apply_chat_template(

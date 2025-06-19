@@ -99,4 +99,5 @@ class MBTIUpdater:
         return {
             "mbti": updated_scores,
             "reason": changes,
+            "final_reason": final_result["reason"]
         }
