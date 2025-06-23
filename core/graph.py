@@ -11,11 +11,6 @@ def choose_axis_and_update(state: Dict) -> Dict:
     parsed_outputs = state["parsed_outputs"]
     current_scores = state["current_scores"]
 
-    # 디버깅
-    # print("LLM Raw Outputs")
-    # for axis in AXIS:
-    #     print(f"{axis}: {state['raw_outputs'].get(axis)}")
-
     print("Parsed Outputs")
     for axis in AXIS:
         print(f"{axis}: {state['parsed_outputs'].get(axis)}")
@@ -71,13 +66,12 @@ def choose_axis_and_update(state: Dict) -> Dict:
         print("LLM output", output_text)
 
         chosen_match = re.search(r"선택된 축\s*:\s*(EI|SN|TF|JP)", output_text)
-        # reason_match = re.search(r"최종 요약 이유\s*:\s*(.+)", output_text)
 
         if not chosen_match :
             raise ValueError("LLM 응답에서 축 또는 이유를 추출할 수 없습니다.")
 
         chosen_label = chosen_match.group(1)
-        chosen_axis = f"{chosen_label.lower()}_score"  # 예: 'jp_score'
+        chosen_axis = f"{chosen_label.lower()}_score" 
         final_reason = parsed_outputs[chosen_axis]["reason"]
 
     except Exception as e:
