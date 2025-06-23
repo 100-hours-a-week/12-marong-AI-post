@@ -2,6 +2,7 @@ from typing import Dict
 from langgraph.graph import StateGraph, END
 from core.chain import Chain
 from core.llm import llm
+import re
 
 AXIS = ["ei_score", "sn_score", "tf_score", "jp_score"]
 
@@ -25,89 +26,63 @@ def choose_axis_and_update(state: Dict) -> Dict:
             parsed_outputs[axis]["score"] = current_scores[axis]
             parsed_outputs[axis]["change"] = "유지"
 
+    # 분석 요약 텍스트 생성
+    reasoning_input = ""
+    for axis in AXIS:
+        axis_label = axis.replace("_score", "").upper()
+        score_before = current_scores[axis]
+        score_after = parsed_outputs[axis]["score"]
+        change = parsed_outputs[axis]["change"]
+        reason = parsed_outputs[axis]["reason"]
 
-    # 상승 또는 하락 축만 필터링
-    candidates = {
-        axis: p for axis, p in parsed_outputs.items()
-        if p.get("change") in ["상승", "하락"] and p.get("score") is not None
-    }
-
-    # 모든 축이 유지일 경우: 그대로 반환
-    if not candidates:
-        final_reason = '모든 축이 유지 상태로 판단되어 점수를 변경하지 않았습니다'
-        state["final_result"] = {
-            "updated_scores": current_scores,
-            "chosen_axis": None,
-            "reason": final_reason,
-            "parsed_outputs": parsed_outputs
-        }
-        print("\n모든 축이 유지 상태") # 디버깅
-        return state
-
-    # 변화폭 가장 큰 축 선택
-    diffs = {
-        axis: abs(p["score"] - current_scores[axis])
-        for axis, p in candidates.items()
-    }
-    chosen = max(diffs, key=diffs.get)
+        reasoning_input += f"[{axis_label} 축]\n"
+        reasoning_input += f"- 이전 점수: {score_before}, 예측 점수: {score_after} ({change})\n"
+        reasoning_input += f"- 이유: {reason}\n\n"
 
 
+    final_prompt = f"""
+    다음은 사용자의 MBTI 각 축(EI, SN, TF, JP)에 대한 점수 변화 및 이유입니다:
 
-    # 각 축의 reason 수집
-    axis_reason_map = {
-        axis.replace("_score", "").upper(): parsed_outputs[axis]["reason"]
-        for axis in AXIS
-    }
+    {reasoning_input}
 
+    이 중 점수 변화가 있었고(reason과 change가 논리적으로 일치하는 경우),  
+    가장 설득력 있는 **하나의 축**만 선택하세요.
 
-    chosen_axis_label = chosen.replace("_score", "").upper()
-    reasoning_prompt = (
-        '''
-        다음은 MBTI 4개 축에 대한 분석 결과입니다:
+    **출력 형식 (반드시 지켜주세요)**:
+    선택된 축: SN
+    """.strip()
 
-        {chr(10).join([f"**[{axis.replace('_score', '').upper()} 축]** {parsed_outputs[axis]['reason']}" for axis in AXIS])}
-
-        위 분석 중 '{chosen_axis_label}' 축에서 점수 변화가 가장 컸습니다.
-        이 축의 점수 변화 이유를 다음 형식에 맞춰 정확히 1문장으로 설명해주세요:
-
-        **필수 형식:** ~한 이유로 '구체적인 문장'이 {chosen_axis_label}적으로 해석되어 점수를 ±N함.
-
-        **출력 예시:**
-        - 상징적 표현을 사용했다는 이유로 '머릿속이 우주처럼 느껴졌다'는 문장이 N적으로 해석되어 점수를 +5함.
-        - 계획적 행동을 언급했다는 이유로 '일정을 미리 짜두었다'는 문장이 J적으로 해석되어 점수를 +5함.
-        '''
-        )
-
-    # final_prompt = reasoning_prompt.format(
-    #     parsed_output=parsed_output_text,
-    #     chosen_axis_label=chosen_axis_label
-    # )
-
+    print("\n LLM Prompt:")
+    print(final_prompt)
     
     try:
         # 프롬프트 안나오고 결과만 디코딩
-        input_ids = llm.tokenizer(reasoning_prompt, return_tensors="pt").input_ids.to(llm.model.device)
+        input_ids = llm.tokenizer(final_prompt, return_tensors="pt").input_ids.to(llm.model.device)
         input_length = input_ids.shape[1]
 
         output_ids = llm.model.generate(
             input_ids=input_ids,
-            max_new_tokens=128,
+            max_new_tokens=64,
             do_sample=False,
             pad_token_id=llm.tokenizer.pad_token_id,
             eos_token_id=llm.tokenizer.eos_token_id,
         )
+        output_text = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
+        print("LLM output", output_text)
 
-        # 프롬프트 이후 출력만 디코딩
-        if len(output_ids[0]) > input_length:
-            final_reason = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
-        else:
-            final_reason = llm.tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
+        chosen_match = re.search(r"선택된 축\s*:\s*(EI|SN|TF|JP)", output_text)
+        # reason_match = re.search(r"최종 요약 이유\s*:\s*(.+)", output_text)
 
-        if chosen_axis_label not in final_reason:
-            raise ValueError("LLM 요약 문장에 선택된 축이 명시되지 않았습니다.")
+        if not chosen_match :
+            raise ValueError("LLM 응답에서 축 또는 이유를 추출할 수 없습니다.")
+
+        chosen_label = chosen_match.group(1)
+        chosen_axis = f"{chosen_label.lower()}_score"  # 예: 'jp_score'
+        final_reason = parsed_outputs[chosen_axis]["reason"]
 
     except Exception as e:
-        final_reason = f"[{chosen_axis_label} 축] 이유를 생성하는 도중 오류가 발생했습니다: {str(e)}"
+        final_reason = f"이유 생성 중 오류 발생: {str(e)}"
+        chosen_axis = None
 
 
     updated_scores = {
@@ -118,7 +93,7 @@ def choose_axis_and_update(state: Dict) -> Dict:
     # 결과 저장
     state["final_result"] = {
         "updated_scores": updated_scores,
-        "chosen_axis": chosen,
+        "chosen_axis": chosen_axis,
         "reason": final_reason,
         "parsed_outputs": state["parsed_outputs"]
     }
