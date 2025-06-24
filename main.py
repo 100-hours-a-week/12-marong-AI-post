@@ -4,9 +4,11 @@ import argparse
 import numpy as np
 from datetime import datetime
 
-import mysql.connector
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 
+from db.db import SessionLocal
+from db.db_model import Users, Posts, SurveyMBTI, SurveyHobby
 from core.update_mbti import MBTIUpdater
 from db.chroma_client import (
     get_chroma_client,
@@ -19,15 +21,6 @@ load_dotenv()
 
 def load_config():
     return {
-        "db": {
-            "user": os.environ["DB_USER"],
-            "host": os.environ["DB_HOST"],
-            "user": os.environ["DB_USER"],
-            "port": os.environ["DB_PORT"],
-            "password": os.environ["DB_PASSWORD"],
-            "database": os.environ["DB_NAME"],
-            "charset":  os.environ.get("DB_CHARSET", "utf8mb4")
-        },
         "change_weight": int(os.environ.get("CHANGE_WEIGHT")),
     }
 
@@ -38,8 +31,8 @@ class MBTIUpdateService:
         self.updater = MBTIUpdater(change_weight = self.change_weight)
 
         # MySQL 연결
-        self.mysql_conn = mysql.connector.connect(**config["db"])
-        self.cursor = self.mysql_conn.cursor(dictionary=True)
+        self.db: Session = SessionLocal()
+
         # ChromaDB 연결
         get_chroma_client()
         self.user_latest_col   = get_user_latest_collection()
@@ -48,18 +41,13 @@ class MBTIUpdateService:
 
     # Users 테이블의 모든 id 조회
     def fetch_all_users(self) -> list[int]:
-        self.cursor.execute("SELECT id AS user_id FROM Users")
-        return [r["user_id"] for r in self.cursor.fetchall()]
+        return [u.id for u in self.db.query(Users.id).all()]
 
     # 모든 user_id에 대한 feed 조회
     def fetch_feed(self, user_id: int) -> int:
-        self.cursor.execute(
-            "SELECT content FROM Posts WHERE user_id = %s", (user_id,)
-        )
-        rows = self.cursor.fetchall()
-        return " ".join(r["content"] for r in rows) if rows else ""
+        rows = self.db.query(Posts.content).filter(Posts.user_id == user_id).all()
+        return " ".join(r.content for r in rows) if rows else ""
     
-
     def fetch_prev_data(self, user_id: int) -> tuple[dict, int | None, bool]:
         # ChromaDB 최신값 조회
         recs = self.user_latest_col.get(
@@ -78,12 +66,14 @@ class MBTIUpdateService:
 
         # 신규 유저: 설문 결과 조회
         # MBTI 설문
-        self.cursor.execute(
-            "SELECT ei_score, sn_score, tf_score, jp_score"
-            " FROM SurveyMBTI WHERE user_id = %s"
-            " ORDER BY created_at DESC LIMIT 1", (user_id,)
+        mbti_row = (
+            self.db.query(SurveyMBTI)
+            .filter(SurveyMBTI.user_id == user_id)
+            .order_by(SurveyMBTI.created_at.desc())
+            .first()
         )
-        mbti_row = self.cursor.fetchone()
+        if not mbti_row:
+            raise ValueError(f"사용자 {user_id}의 MBTI 설문 결과가 없습니다.")
         prev_scores = {
             "ei_score": mbti_row["ei_score"],
             "sn_score": mbti_row["sn_score"],
@@ -91,12 +81,14 @@ class MBTIUpdateService:
             "jp_score": mbti_row["jp_score"]
         }
         # 취미 설문
-        self.cursor.execute(
-            "SELECT hobby_name FROM SurveyHobby"
-            " WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", (user_id,)
+        hobby_row = (
+            self.db.query(SurveyHobby)
+            .filter(SurveyHobby.user_id == user_id)
+            .order_by(SurveyHobby.created_at.desc())
+            .first()
         )
-        hobby_row = self.cursor.fetchone()
-        prev_hobby = hobby_row["hobby_name"] if hobby_row else None
+        prev_hobby = hobby_row.hobby_name if hobby_row else None
+
         return prev_scores, prev_hobby, True
 
     # 가져오기 
@@ -104,33 +96,34 @@ class MBTIUpdateService:
         feed = self.fetch_feed(user_id)
         if not feed:
             print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
-        else:
-            prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
-            hobby_meta = prev_hobby if isinstance(prev_hobby, list) else (prev_hobby or [])
-            updated = self.updater.update_mbti(feed, prev_scores)
-            ts = datetime.now().isoformat()
+            return
+        
+        prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
+        hobby_meta = prev_hobby or []
+        updated = self.updater.update_mbti(feed, prev_scores)
+        ts = datetime.now().isoformat()
 
-            # 메타데이터 담기
-            common_meta = {
-                "user_id": int(user_id),
-                "timestamp": ts,
-                "hobby_name": hobby_meta,
-                "ei_score": int(updated["mbti"]["ei_score"]),
-                "sn_score": int(updated["mbti"]["sn_score"]),
-                "tf_score": int(updated["mbti"]["tf_score"]),
-                "jp_score": int(updated["mbti"]["jp_score"])
-            }
+        # 메타데이터 담기
+        common_meta = {
+            "user_id": int(user_id),
+            "timestamp": ts,
+            "hobby_name": hobby_meta,
+            "ei_score": int(updated["mbti"]["ei_score"]),
+            "sn_score": int(updated["mbti"]["sn_score"]),
+            "tf_score": int(updated["mbti"]["tf_score"]),
+            "jp_score": int(updated["mbti"]["jp_score"])
+        }
 
-            # embeddings에는 [0.0] 하나만 넘기기
-            holder_vec=np.array([0.0], dtype=float)
+        # embeddings에는 [0.0] 하나만 넘기기
+        holder_vec=np.array([0.0], dtype=float)
 
-            # user 히스토리 기록
-            self.user_history_col.add(
-                ids=[str(uuid.uuid4())],
-                metadatas=[common_meta],
-                documents=[""],
-                embeddings=[holder_vec]
-            )
+        # user 히스토리 기록
+        self.user_history_col.add(
+            ids=[str(uuid.uuid4())],
+            metadatas=[common_meta],
+            documents=[""],
+            embeddings=[holder_vec]
+        )
 
         # user 최신값
         latest_meta = {**common_meta, "updated_at": ts }
