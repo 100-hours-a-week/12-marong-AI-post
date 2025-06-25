@@ -9,16 +9,22 @@ class Chain:
             for axis in self.templates
         }
 
-    def run(self, axis: str, user_feed: str, current_score: int, examples: str) -> dict:
+    def run(self, axis: str, user_feed: str, current_score: int, examples: str, missions: str) -> dict:
         prompt = self.templates[axis].format(
             user_feed=user_feed,
             current_score=current_score,
-            examples=examples
+            examples=examples,
+            missions=missions
         )
         raw = llm.invoke(prompt)
+
+        print(f"\n [LLM Raw Output - {axis}]")
+        print(raw)
+
         parsed = self.chains[axis].invoke({
             "user_feed": user_feed,
             "current_score": current_score,
-            "examples": examples
+            "examples": examples,
+            "missions": missions
         })
         return {"raw": raw, "parsed": parsed}

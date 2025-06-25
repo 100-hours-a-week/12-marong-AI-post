@@ -2,13 +2,14 @@ import os
 import uuid
 import argparse
 import numpy as np
+from typing import Tuple, List
 from datetime import datetime
 
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from db.db import SessionLocal
-from db.db_model import Users, Posts, SurveyMBTI, SurveyHobby
+from db.db_model import Users, Posts, SurveyMBTI, SurveyHobby, Missions
 from core.update_mbti import MBTIUpdater
 from db.chroma_client import (
     get_chroma_client,
@@ -44,9 +45,11 @@ class MBTIUpdateService:
         return [u.id for u in self.db.query(Users.id).all()]
 
     # 모든 user_id에 대한 feed 조회
-    def fetch_feed(self, user_id: int) -> int:
-        rows = self.db.query(Posts.content).filter(Posts.user_id == user_id).all()
-        return " ".join(r.content for r in rows) if rows else ""
+    def fetch_feed(self, user_id: int) -> Tuple[str, List[str]]:
+        rows = self.db.query(Posts.content, Missions.title).join(Missions, Posts.mission_id == Missions.id).filter(Posts.user_id == user_id).all()
+        feed_texts = [f"[{m}] {p}" for p, m in rows]
+        mission_titles = [m for _, m in rows]
+        return " ".join(feed_texts), mission_titles
     
     def fetch_prev_data(self, user_id: int) -> tuple[dict, int | None, bool]:
         # ChromaDB 최신값 조회
@@ -75,12 +78,11 @@ class MBTIUpdateService:
         if not mbti_row:
             raise ValueError(f"사용자 {user_id}의 MBTI 설문 결과가 없습니다.")
         prev_scores = {
-            "ei_score": mbti_row["ei_score"],
-            "sn_score": mbti_row["sn_score"],
-            "tf_score": mbti_row["tf_score"],
-            "jp_score": mbti_row["jp_score"]
+            "ei_score": mbti_row.ei_score,
+            "sn_score": mbti_row.sn_score,
+            "tf_score": mbti_row.tf_score,
+            "jp_score": mbti_row.jp_score
         }
-        # 취미 설문
         hobby_row = (
             self.db.query(SurveyHobby)
             .filter(SurveyHobby.user_id == user_id)
@@ -93,15 +95,21 @@ class MBTIUpdateService:
 
     # 가져오기 
     def run(self, user_id: int):
-        feed = self.fetch_feed(user_id)
-        if not feed:
+        rows = self.db.query(Posts.content, Missions.title).join(Missions, Posts.mission_id == Missions.id).filter(Posts.user_id == user_id).all()
+        if not rows:
             print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
             return
         
         prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
         hobby_meta = prev_hobby or []
-        updated = self.updater.update_mbti(feed, prev_scores)
         ts = datetime.now().isoformat()
+
+        for post_content, mission_title in rows:
+            user_feed = f"[{mission_title}] {post_content}"
+            mission_text = mission_title
+
+            mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
+            updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text)
 
         # 메타데이터 담기
         common_meta = {
