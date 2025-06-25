@@ -118,7 +118,3 @@ class SurveyHobby(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    name = Column(String(100), nullable=False)
-    description = Column(Text)
-    invite_code = Column(CHAR(6), unique=True, nullable=False)
-    image_url = Column(Text)

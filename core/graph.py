@@ -2,6 +2,7 @@ from typing import Dict
 from langgraph.graph import StateGraph, END
 from core.chain import Chain
 from core.llm import llm
+from core.mbti_utils import AXIS, AXIS_LABEL_MAP, AXIS_REVERSE_MAP, format_axis_reason, get_change_type
 import re
 
 AXIS = ["ei_score", "sn_score", "tf_score", "jp_score"]
@@ -10,7 +11,7 @@ AXIS = ["ei_score", "sn_score", "tf_score", "jp_score"]
 def choose_axis_and_update(state: Dict) -> Dict:
     parsed_outputs = state["parsed_outputs"]
     current_scores = state["current_scores"]
-
+    
     print("Parsed Outputs")
     for axis in AXIS:
         print(f"{axis}: {state['parsed_outputs'].get(axis)}")
@@ -46,9 +47,6 @@ def choose_axis_and_update(state: Dict) -> Dict:
     **출력 형식 (반드시 지켜주세요)**:
     선택된 축: SN
     """.strip()
-
-    print("\n LLM Prompt:")
-    print(final_prompt)
     
     try:
         # 프롬프트 안나오고 결과만 디코딩
@@ -63,15 +61,14 @@ def choose_axis_and_update(state: Dict) -> Dict:
             eos_token_id=llm.tokenizer.eos_token_id,
         )
         output_text = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
-        print("LLM output", output_text)
-
         chosen_match = re.search(r"선택된 축\s*:\s*(EI|SN|TF|JP)", output_text)
+        print("LLM output2", chosen_match)
 
         if not chosen_match :
             raise ValueError("LLM 응답에서 축 또는 이유를 추출할 수 없습니다.")
 
         chosen_label = chosen_match.group(1)
-        chosen_axis = f"{chosen_label.lower()}_score" 
+        chosen_axis = AXIS_LABEL_MAP[chosen_label]
         final_reason = parsed_outputs[chosen_axis]["reason"]
 
     except Exception as e:
@@ -80,8 +77,7 @@ def choose_axis_and_update(state: Dict) -> Dict:
 
 
     updated_scores = {
-        axis: parsed_outputs[axis]["score"]
-        for axis in AXIS
+        axis: parsed_outputs[axis]["score"] for axis in AXIS
     }
 
     # 결과 저장
@@ -97,18 +93,19 @@ def choose_axis_and_update(state: Dict) -> Dict:
     return state
 
 
-def build_mbti_graph(chain: Chain):
+def build_mbti_graph(chain: Chain, change_weight):
     graph = StateGraph(state_schema=dict)
 
     # 각 축별 노드 생성
     for axis in AXIS:
-        def make_axis_func(axis):  # 클로저 방지
+        def make_axis_func(axis, change_weight):  # 클로저 방지
             def node(state: Dict) -> Dict:
                 result = chain.run(
                     axis=axis,
                     user_feed=state["user_feed"],
                     current_score=state["current_scores"][axis],
-                    examples=state["examples_text"]
+                    examples=state["examples_text"],
+                    missions = state["missions_text"]
                 )
                 state["raw_outputs"][axis] = result["raw"]
                 
@@ -119,10 +116,13 @@ def build_mbti_graph(chain: Chain):
 
                 if predicted is not None:
                     if predicted > current:
+                        parsed["score"] = min(100, current + change_weight)
                         parsed["change"] = "상승"
                     elif predicted < current:
+                        parsed["score"] = max(0, current - change_weight)
                         parsed["change"] = "하락"
                     else:
+                        parsed["score"] = current
                         parsed["change"] = "유지"
                 else:
                     parsed["score"] = current
@@ -131,7 +131,7 @@ def build_mbti_graph(chain: Chain):
                 state["parsed_outputs"][axis] = parsed
                 return state
             return node
-        graph.add_node(axis, make_axis_func(axis))
+        graph.add_node(axis, make_axis_func(axis, change_weight))
 
     # 마지막 점수 보정 노드 추가
     graph.add_node("final_update", choose_axis_and_update)
@@ -150,10 +150,11 @@ def run_mbti_update_with_graph(
     user_feed: str,
     current_scores: Dict[str, int],
     examples_text: str,
-    change_weight: int
+    change_weight: int,
+    missions_text: str
 ):
     chain = Chain()
-    app = build_mbti_graph(chain)
+    app = build_mbti_graph(chain, change_weight)
 
     initial_state = {
         "user_feed": user_feed,
@@ -162,6 +163,7 @@ def run_mbti_update_with_graph(
         "raw_outputs": {},
         "parsed_outputs": {},
         "change_weight": change_weight,
+        "missions_text": missions_text
     }
 
     final_state = app.invoke(initial_state)
@@ -174,6 +176,6 @@ def run_mbti_update_with_graph(
         },
         "parsed_outputs": final_result["parsed_outputs"],
         "chosen_axis": final_result["chosen_axis"],
-        "reason": final_result["reason"],  # 혹시 추후 reason도 활용할 수 있게 포함
+        "reason": final_result["reason"], 
         "mbti": final_result["updated_scores"],  # 최종 점수도 포함
     }
