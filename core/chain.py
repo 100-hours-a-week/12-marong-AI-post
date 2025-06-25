@@ -18,9 +18,6 @@ class Chain:
         )
         raw = llm.invoke(prompt)
 
-        print(f"\n [LLM Raw Output - {axis}]")
-        print(raw)
-
         parsed = self.chains[axis].invoke({
             "user_feed": user_feed,
             "current_score": current_score,

@@ -11,7 +11,8 @@ AXIS = ["ei_score", "sn_score", "tf_score", "jp_score"]
 def choose_axis_and_update(state: Dict) -> Dict:
     parsed_outputs = state["parsed_outputs"]
     current_scores = state["current_scores"]
-    
+    change_weight = state["change_weight"]
+
     print("Parsed Outputs")
     for axis in AXIS:
         print(f"{axis}: {state['parsed_outputs'].get(axis)}")
@@ -22,35 +23,29 @@ def choose_axis_and_update(state: Dict) -> Dict:
             parsed_outputs[axis]["score"] = current_scores[axis]
             parsed_outputs[axis]["change"] = "유지"
 
-    # 분석 요약 텍스트 생성
-    reasoning_input = ""
-    for axis in AXIS:
-        axis_label = axis.replace("_score", "").upper()
-        score_before = current_scores[axis]
-        score_after = parsed_outputs[axis]["score"]
-        change = parsed_outputs[axis]["change"]
-        reason = parsed_outputs[axis]["reason"]
+    # 가장 긴 텍스트를 가진 축 찾기
+    longest_axis = max(AXIS, key = lambda a: len(parsed_outputs[a]["reason"] or ""))
+    reason_text = parsed_outputs[longest_axis]["reason"]
 
-        reasoning_input += f"[{axis_label} 축]\n"
-        reasoning_input += f"- 이전 점수: {score_before}, 예측 점수: {score_after} ({change})\n"
-        reasoning_input += f"- 이유: {reason}\n\n"
+    if "유지" in reason_text:
+        parsed_outputs[longest_axis]['score'] = current_scores[longest_axis]
+        parsed_outputs[longest_axis]['change'] = "유지"
+        
+    else:
+        llm_prompt = f"""
+    사용자의 피드에 기반한 다음 이유는 [{longest_axis.upper()} 축]에 대한 설명입니다:
 
+    "{reason_text}"
 
-    final_prompt = f"""
-    다음은 사용자의 MBTI 각 축(EI, SN, TF, JP)에 대한 점수 변화 및 이유입니다:
+    이 이유를 읽고, 이 축의 성향 점수를 어떻게 조정해야 할지 판단해주세요.
+    다음 중 하나를 정확히 골라주세요: 상승 / 하락
 
-    {reasoning_input}
-
-    이 중 점수 변화가 있었고(reason과 change가 논리적으로 일치하는 경우),  
-    가장 설득력 있는 **하나의 축**만 선택하세요.
-
-    **출력 형식 (반드시 지켜주세요)**:
-    선택된 축: SN
+    출력 형식 (반드시 지켜주세요):
+    결정: 상승
     """.strip()
     
     try:
-        # 프롬프트 안나오고 결과만 디코딩
-        input_ids = llm.tokenizer(final_prompt, return_tensors="pt").input_ids.to(llm.model.device)
+        input_ids = llm.tokenizer(llm_prompt, return_tensors="pt").input_ids.to(llm.model.device)
         input_length = input_ids.shape[1]
 
         output_ids = llm.model.generate(
@@ -61,20 +56,31 @@ def choose_axis_and_update(state: Dict) -> Dict:
             eos_token_id=llm.tokenizer.eos_token_id,
         )
         output_text = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
-        chosen_match = re.search(r"선택된 축\s*:\s*(EI|SN|TF|JP)", output_text)
-        print("LLM output2", chosen_match)
+        print("LLM 판단 결과", output_text)
 
-        if not chosen_match :
-            raise ValueError("LLM 응답에서 축 또는 이유를 추출할 수 없습니다.")
-
-        chosen_label = chosen_match.group(1)
-        chosen_axis = AXIS_LABEL_MAP[chosen_label]
-        final_reason = parsed_outputs[chosen_axis]["reason"]
+        # 방향 결정
+        match = re.search(f"결정\s*:\s*(상승|하락)", output_text)
+        if not match:
+            raise ValueError("LLM 응답에서 '상승' 또는 '하락'을 찾을 수 없습니다")
+        direction = match.group(1)
 
     except Exception as e:
-        final_reason = f"이유 생성 중 오류 발생: {str(e)}"
-        chosen_axis = None
+        print("LLM 판단 실패:", str(e))
+        direction = "유지"
 
+    # 점수 조정
+    if direction == "상승":
+        parsed_outputs[longest_axis]["score"] = min(100, current_scores[longest_axis] + change_weight)
+        parsed_outputs[longest_axis]["change"] = "상승"
+    else:  # 하락
+        parsed_outputs[longest_axis]["score"] = max(0, current_scores[longest_axis] - change_weight)
+        parsed_outputs[longest_axis]["change"] = "하락"
+
+    # 나머지 축은 변경 없이 유지
+    for axis in AXIS:
+        if axis != longest_axis:
+            parsed_outputs[axis]["score"] = current_scores[axis]
+            parsed_outputs[axis]["change"] = "유지"
 
     updated_scores = {
         axis: parsed_outputs[axis]["score"] for axis in AXIS
@@ -83,8 +89,8 @@ def choose_axis_and_update(state: Dict) -> Dict:
     # 결과 저장
     state["final_result"] = {
         "updated_scores": updated_scores,
-        "chosen_axis": chosen_axis,
-        "reason": final_reason,
+        "chosen_axis": longest_axis,
+        "reason": reason_text,
         "parsed_outputs": state["parsed_outputs"]
     }
 
