@@ -108,8 +108,15 @@ class MBTIUpdateService:
             user_feed = f"[{mission_title}] {post_content}"
             mission_text = mission_title
 
-            mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
-            updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text)
+            if len(post_content.strip()) <= 5:
+                print(f" {post_content} 피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다")
+                updated = {
+                    "mbti": prev_scores,
+                    "final_reason": "피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다."
+                }
+            else:
+                mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
+                updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text)
 
         # 메타데이터 담기
         common_meta = {
