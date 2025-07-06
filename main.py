@@ -104,19 +104,29 @@ class MBTIUpdateService:
         hobby_meta = prev_hobby or []
         ts = datetime.now().isoformat()
 
-        for post_content, mission_title in rows:
+        current_scores = prev_scores.copy()
+
+        for idx, (post_content, mission_title) in enumerate(rows, 1):
             user_feed = f"[{mission_title}] {post_content}"
             mission_text = mission_title
+            print(f"\n [{idx}] 미션: {mission_text}")
 
             if len(post_content.strip()) <= 5:
                 print(f" {post_content} 피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다")
                 updated = {
-                    "mbti": prev_scores,
+                    "mbti": current_scores,
                     "final_reason": "피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다."
                 }
             else:
                 mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
                 updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text)
+                current_scores =updated["mbti"]
+
+            # 결과 출력
+            print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
+            print(f"MBTI 점수: {updated['mbti']}")
+            print(f"취미: {prev_hobby or '없음'}")
+            print(f"이유: {updated['final_reason']}")
 
         # 메타데이터 담기
         common_meta = {
@@ -148,13 +158,6 @@ class MBTIUpdateService:
             documents=[""],
             embeddings=[holder_vec]
         )
-
-
-        # 결과 출력
-        print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
-        print(f"MBTI 점수: {updated['mbti']}")
-        print(f"취미: {prev_hobby or '없음'}")
-        print(f"이유: {updated['final_reason']}")
 
 
 if __name__ == "__main__":

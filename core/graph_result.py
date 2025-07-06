@@ -55,7 +55,6 @@ class FinalScoreDecider:
                 eos_token_id=llm.tokenizer.eos_token_id,
             )
             output_text = llm.tokenizer.decode(output_ids[0][input_length:], skip_special_tokens=True).strip()
-            print("LLM 판단 결과", output_text)
 
             # 방향 결정
             match = re.search(f"결정\s*:\s*(상승|하락)", output_text)
