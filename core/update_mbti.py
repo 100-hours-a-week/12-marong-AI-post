@@ -1,7 +1,7 @@
 import re
 from typing import Dict, List, Tuple
 from db.chroma_client import get_chroma_client
-from .graph import run_mbti_update_with_graph
+from .graph import MBTIGraphRunner
 from .chain import Chain
 
 # ChromaDB에서 유사 피드와 라벨 조회
@@ -29,12 +29,13 @@ class MBTIUpdater:
         examples = self.retriever.get_similar(user_feed)
         examples_text = "\n".join([f"- ({mbti}) {doc}" for doc, mbti in examples])
 
+        runner = MBTIGraphRunner(change_weight=self.change_weight)
+
         # langGraph로 최종 점수 결정
-        final_result = run_mbti_update_with_graph(
+        final_result =runner.run(
             user_feed = user_feed,
             current_scores=current_scores,
             examples_text = examples_text,
-            change_weight = self.change_weight,
             missions_text = missions_text
         )
 
