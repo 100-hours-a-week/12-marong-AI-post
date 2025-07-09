@@ -118,3 +118,23 @@ class SurveyHobby(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+class MbtiUpdates(Base): 
+    __tablename__ = "MbtiUpdates"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    post_id = Column(BigInteger, ForeignKey('Posts.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('Users.id', ondelete='CASCADE'), nullable=False)
+    ei_score = Column(Integer, nullable=False)
+    sn_score = Column(Integer, nullable=False)
+    tf_score = Column(Integer, nullable=False)
+    jp_score = Column(Integer, nullable=False)
+    changed_mbti_type = Column(String(2), nullable=False)
+    change_reason = Column(Text, nullable=False)
+    previous_score = Column(Integer, nullable=False)
+    current_score = Column(Integer, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_mbti_updates_post_id', 'post_id'),
+        Index('idx_mbti_updates_user_id', 'user_id'),
+    )

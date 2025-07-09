@@ -9,13 +9,8 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from db.db import SessionLocal
-from db.db_model import Users, Posts, SurveyMBTI, SurveyHobby, Missions
+from db.db_model import Users, Posts, SurveyMBTI, Missions, MbtiUpdates
 from core.update_mbti import MBTIUpdater
-from db.chroma_client import (
-    get_chroma_client,
-    get_user_latest_collection,
-    get_user_history_collection,
-)
 
 # .env 파일 로드
 load_dotenv()
@@ -34,12 +29,6 @@ class MBTIUpdateService:
         # MySQL 연결
         self.db: Session = SessionLocal()
 
-        # ChromaDB 연결
-        get_chroma_client()
-        self.user_latest_col   = get_user_latest_collection()
-        self.user_history_col  = get_user_history_collection()
-
-
     # Users 테이블의 모든 id 조회
     def fetch_all_users(self) -> list[int]:
         return [u.id for u in self.db.query(Users.id).all()]
@@ -51,24 +40,21 @@ class MBTIUpdateService:
         mission_titles = [m for _, m in rows]
         return " ".join(feed_texts), mission_titles
     
-    def fetch_prev_data(self, user_id: int) -> tuple[dict, int | None, bool]:
-        # ChromaDB 최신값 조회
-        recs = self.user_latest_col.get(
-            where={"user_id": int(user_id)}, limit=1, include=["metadatas"]
+    def fetch_prev_data(self, user_id: int) -> dict:
+        latest_update = (
+            self.db.query(MbtiUpdates)
+            .filter(MbtiUpdates.user_id == user_id)
+            .order_by(MbtiUpdates.created_at.desc())
+            .first()
         )
-        if recs.get("ids"):
-            meta = recs["metadatas"][0]
-            prev_scores = {
-                "ei_score": meta["ei_score"],
-                "sn_score": meta["sn_score"],
-                "tf_score": meta["tf_score"],
-                "jp_score": meta["jp_score"]
+        if latest_update:
+            return {
+                "ei_score": latest_update.ei_score,
+                "sn_score": latest_update.sn_score,
+                "tf_score": latest_update.tf_score,
+                "jp_score": latest_update.jp_score
             }
-            prev_hobby = meta.get("hobby_name") 
-            return prev_scores, prev_hobby, False
 
-        # 신규 유저: 설문 결과 조회
-        # MBTI 설문
         mbti_row = (
             self.db.query(SurveyMBTI)
             .filter(SurveyMBTI.user_id == user_id)
@@ -83,82 +69,70 @@ class MBTIUpdateService:
             "tf_score": mbti_row.tf_score,
             "jp_score": mbti_row.jp_score
         }
-        hobby_row = (
-            self.db.query(SurveyHobby)
-            .filter(SurveyHobby.user_id == user_id)
-            .order_by(SurveyHobby.created_at.desc())
-            .first()
-        )
-        prev_hobby = hobby_row.hobby_name if hobby_row else None
-
-        return prev_scores, prev_hobby, True
+        return prev_scores
 
     # 가져오기 
     def run(self, user_id: int):
-        rows = self.db.query(Posts.content, Missions.title).join(Missions, Posts.mission_id == Missions.id).filter(Posts.user_id == user_id).all()
+        rows = self.db.query(Posts.id, Posts.content, Missions.title).join(Missions, Posts.mission_id == Missions.id).filter(Posts.user_id == user_id).all()
         if not rows:
             print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
             return
         
-        prev_scores, prev_hobby, is_new = self.fetch_prev_data(user_id)
-        hobby_meta = prev_hobby or []
-        ts = datetime.now().isoformat()
-
+        prev_scores = self.fetch_prev_data(user_id)
+        original_scores = prev_scores.copy()
         current_scores = prev_scores.copy()
+    
 
-        for idx, (post_content, mission_title) in enumerate(rows, 1):
+        for idx, (post_id, post_content, mission_title) in enumerate(rows, 1):
             user_feed = f"[{mission_title}] {post_content}"
             mission_text = mission_title
             print(f"\n [{idx}] 미션: {mission_text}")
 
-            if len(post_content.strip()) <= 5:
-                print(f" {post_content} 피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다")
-                updated = {
-                    "mbti": current_scores,
-                    "final_reason": "피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다."
-                }
-            else:
-                mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
-                updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text)
-                current_scores =updated["mbti"]
+            # if len(post_content.strip()) <= 5:
+            #     print(f" {post_content} 피드 내용이 너무 짧아 MBTI를 판단할 수 없습니다")
+            #     continue
+            prev_scores_before = prev_scores.copy()
+            mission_based_feed = f"유저는 '{mission_text}' 미션을 수행하며 아래 피드를 작성했습니다: \n{user_feed}"
+            updated = self.updater.update_mbti(mission_based_feed, prev_scores, mission_text, original_scores)
+            current_scores =updated["mbti"]
+            final_reason = updated["final_reason"]
+            changed_axis = updated["changed_axis"].upper()[:2]
+            prev_scores = updated["original_score"]
 
             # 결과 출력
             print(f"\n사용자 [{user_id}]의 MBTI가 업데이트되었습니다.")
             print(f"MBTI 점수: {updated['mbti']}")
-            print(f"취미: {prev_hobby or '없음'}")
             print(f"이유: {updated['final_reason']}")
 
-        # 메타데이터 담기
-        common_meta = {
-            "user_id": int(user_id),
-            "timestamp": ts,
-            "hobby_name": hobby_meta,
-            "ei_score": int(updated["mbti"]["ei_score"]),
-            "sn_score": int(updated["mbti"]["sn_score"]),
-            "tf_score": int(updated["mbti"]["tf_score"]),
-            "jp_score": int(updated["mbti"]["jp_score"])
-        }
+            # 축별 키 만들기
+            axis_key = f"{changed_axis}_score" 
 
-        # embeddings에는 [0.0] 하나만 넘기기
-        holder_vec=np.array([0.0], dtype=float)
+            # 점수만 추출
+            axis_key = axis_key.lower()
+            previous_score_value = prev_scores_before[axis_key]
+            current_score_value = current_scores[axis_key]
 
-        # user 히스토리 기록
-        self.user_history_col.add(
-            ids=[str(uuid.uuid4())],
-            metadatas=[common_meta],
-            documents=[""],
-            embeddings=[holder_vec]
-        )
+            prev_scores = updated["mbti"]
 
-        # user 최신값
-        latest_meta = {**common_meta, "updated_at": ts }
-        self.user_latest_col.upsert(
-            ids=[str(user_id)],
-            metadatas=[latest_meta],
-            documents=[""],
-            embeddings=[holder_vec]
-        )
 
+            update_record = MbtiUpdates(
+                post_id=post_id,
+                user_id=user_id,
+                ei_score=current_scores["ei_score"],
+                sn_score=current_scores["sn_score"],
+                tf_score=current_scores["tf_score"],
+                jp_score=current_scores["jp_score"],
+                changed_mbti_type=changed_axis,
+                change_reason=final_reason,
+                previous_score=previous_score_value,
+                current_score=current_score_value,
+                created_at=datetime.now()
+            )
+
+            self.db.add(update_record)
+            self.db.commit()
+            prev_scores = current_scores.copy()
+            print(f"\n 사용자 [{user_id}]의 최종 MBTI 결과가 테이블에 저장되었습니다.")
 
 if __name__ == "__main__":
     config = load_config()

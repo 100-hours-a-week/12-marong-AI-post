@@ -25,7 +25,7 @@ class MBTIUpdater:
         self.change_weight = change_weight
 
     
-    def update_mbti(self, user_feed: str, current_scores: Dict[str, int], missions_text: str) -> Dict:
+    def update_mbti(self, user_feed: str, current_scores: Dict[str, int], missions_text: str, original_scores: Dict[str, int]) -> Dict:
         examples = self.retriever.get_similar(user_feed)
         examples_text = "\n".join([f"- ({mbti}) {doc}" for doc, mbti in examples])
 
@@ -39,8 +39,15 @@ class MBTIUpdater:
             missions_text = missions_text
         )
 
+        changed_axis = final_result["chosen_axis"] 
+        previous_score = original_scores[f"{changed_axis}"]  
+        current_score = final_result["mbti"][f"{changed_axis}"]  
+
         return {
-        "mbti": final_result["mbti"], 
-        "reason": final_result.get("axis_reason_map", {}),
-        "final_reason": final_result.get("reason", "이유 없음")  
-    }
+            "mbti": final_result["mbti"],
+            "changed_axis": changed_axis,  
+            # "previous_score": previous_score,  
+            "current_score": current_score,  
+            "final_reason": final_result.get("reason", "이유 없음"),
+            "original_score": original_scores
+        }
