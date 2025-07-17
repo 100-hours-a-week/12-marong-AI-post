@@ -1,56 +1,28 @@
-# 12-marong-AI-post
-<img width="1273" alt="스크린샷 2025-06-01 오전 5 04 20" src="https://github.com/user-attachments/assets/1bfffd0c-a2bd-4d18-bdc7-f8f3106e470a" />
+# 🌰 마니또는 마롱으로, marong
 
+<img width="800" alt="스크린샷 2025-06-01 오전 5 04 20" src="https://github.com/user-attachments/assets/db61d246-992a-4e7f-95c6-ada4e0915182" />
 
-# 📍 Overview
+[marong 바로가기](https://marong.co.kr/home) 
 
-- 프로젝트 이름: Marong
-- 프로젝트 설명: 마니또 기반 SNS 서비스
+## 집단 내 라포 형성과 초기 네트워킹 형성을 위한 마니또 SNS 💬
+특히, 대학OT, 직장 온보딩, 소규모 커뮤니티와 같은 초기 집단에서의 자연스러운 친밀감 형성을 도와주는 서비스예요 👥
 
+## 📍 ONLY 마롱에서
+> 단순한 마니또, 단순한 소모임 SNS와는 달리
+> **마니또+SNS** 로 이어지는 것이 핵심입니다.
 
-## 📍 서비스 아키텍처 다이어그램
- <img width="600" alt="스크린샷 2025-04-29 오후 8 25 00" src="https://github.com/user-attachments/assets/ad186ffa-ea3a-4889-b7f0-aa1d1650e3cd" />
+- 단발성 이벤트가 아닌, **주기적인 라포 형성 루틴**
+- **온·오프라인 병행 미션**으로 내향적인 사람도 부담 없이 참여 가능  
+- 미션 수행 → 게시물 공유 로 이어지는 **SNS 구조**
+- **AI 추천 장소 기반** 으로 마니또&마니띠의 라포 형성 극대화
 
-## 📍 피드기반 행동분석
-- 사용자가 업로드한 피드 텍스트를 RAG 기반으로 분석해, 현 MBTI 점수를 보정 및 업데이트 진행
-> - RAG 모듈 (문서로딩 -> Splitting -> Embedding -> Retriever -> Top-k
-> - PromptTemplate -> LLM Chain -> Score Parser -> mbti 업데이트
+---
 
-
-## 📍 API 명세
-> [POST] `/mbti/update`
-#### Request Body:
-```
-{
-    "id": "user123",
-    "eiScore": 50,
-    "snScore": 50,
-    "tfScore": 50,
-    "jpScore": 50, 
-    "hobbies": ["게임", "운동"],
-    "content": "마니또에게 인사하는 미션 완료!"
-}
-```
-
-#### Response Body:
-```
-{
-  "user_id" : "user123",
-  "message" : "update_success",
-  "data" : {
-    "mbti_scores": {"e": 80, "s": 60, "t": 45, "j": 70}, 
-    "hobby": "운동",
-    "user_feed": "마니또에게 인사하는 미션 완료!"
-   }
-}
-```
-
-
-## 📍 모델 선정 및 사용 이유
-- 사용 모델: `hyperclovax-1.5b-instruct`
-- 이유: 타 모델과 비교해보았을 때, 적은 파라미터로 높은 한국어 이해도와 빠른 추론 성능
-
-## 📍 추후 개선 사항들
-- 입력받는 사용자 취미도 함께 반영 후 mbti 업데이트
-- 성능 고도화
-- QLoRA를 활용한 llm 파인튜닝 (번역된 kaggle MBTI500 사용)
+## ✅ 주요 기능
+> 매주 다른 사람의 마니또가 되어 몰래 미션 수행하고 인증하기
+- **matching**: 모두가 마니띠이자 마니또, 매주 월요일 12시에 마니또 시작!
+- **Group**: '그룹'을 통해 원하는 사람들과 마니또를 진행
+- **Mission**: AI가 만들어주는 미션을 마니또에게 몰래 수행
+- **post**: 수행한 미션을 피드 업로드를 통해 인증
+- **place**: 마니또와 더 가까워지기 위한 마니또와 내 성향 기반 장소 추천
+- **record**: 피드 내용에 따라 자신의 mbti 변화를 볼 수 있음
