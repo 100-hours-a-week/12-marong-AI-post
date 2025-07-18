@@ -1,6 +1,6 @@
 # 🌰 마니또는 마롱으로, marong
 
-<img width="800" alt="스크린샷 2025-06-01 오전 5 04 20" src="https://github.com/user-attachments/assets/db61d246-992a-4e7f-95c6-ada4e0915182" />
+<img width="800" height="799" alt="스크린샷 2025-07-18 오전 11 08 35" src="https://github.com/user-attachments/assets/9e9568b5-2630-44d8-b3af-9cb8647d4c31" />
 
 👉🏻 [marong 바로가기](https://marong.co.kr/home) 
 
@@ -17,24 +17,17 @@
 - **AI 추천 장소 기반** 으로 마니또&마니띠의 라포 형성 극대화
 
 ---
-
 ## ✅ 주요 기능
 > 매주 다른 사람의 마니또가 되어 몰래 미션 수행하고 인증하기
 
-### 1️⃣ Group: '그룹'을 통해 원하는 사람들과 마니또를 진행
-### 2️⃣ Matching: 모두가 마니띠이자 마니또, 매주 월요일 12시에 매칭 시작!
-
-
-### 3️⃣ Mission: AI가 만들어주는 미션을 선택해서 마니또에게 몰래 수행
-### 4️⃣ Post: 수행한 미션을 피드 업로드를 통해 인증
-
-
-### 5️⃣ Place: 마니또와 더 가까워지기 위한 마니또와 내 성향 기반 장소 추천
-### 6️⃣ Record: 피드 내용에 따라 자신의 mbti 변화를 볼 수 있어요
-
+<img width="800" height="801" alt="스크린샷 2025-07-18 오전 11 09 34" src="https://github.com/user-attachments/assets/ea9a70c5-4b4d-4368-8a14-34c0e378069a" />
+<img width="800" height="804" alt="스크린샷 2025-07-18 오전 11 10 14" src="https://github.com/user-attachments/assets/52b48252-9023-40f3-8e53-8d27607d21bf" />
+<img width="800" height="797" alt="스크린샷 2025-07-18 오전 11 10 52" src="https://github.com/user-attachments/assets/7090bd41-9855-417d-a0fc-f733ef90602e" />
 
 ## 🛠️ Tech Stack
-
+| FE | BE | Cloud | AI |
+|--------------|---------------|---------------|---------------|
+|       |          |        |         |
 
 ## 🎉 Contributors
 | Jay(장우준) | Trent(곽용우) | Noah(문현민) | Rosy(장서연) | Aiden(김충구) | Joy(윤지원) |
