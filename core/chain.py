@@ -9,16 +9,16 @@ class Chain:
             for axis in self.templates
         }
 
-    def run(self, axis: str, user_feed: str, current_score: int, examples: str, missions: str) -> dict:
+    async def arun(self, axis: str, user_feed: str, current_score: int, examples: str, missions: str) -> dict:
         prompt = self.templates[axis].format(
             user_feed=user_feed,
             current_score=current_score,
             examples=examples,
             missions=missions
         )
-        raw = llm.invoke(prompt)
+        raw = await llm.ainvoke(prompt)
 
-        parsed = self.chains[axis].invoke({
+        parsed = await self.chains[axis].ainvoke({
             "user_feed": user_feed,
             "current_score": current_score,
             "examples": examples,

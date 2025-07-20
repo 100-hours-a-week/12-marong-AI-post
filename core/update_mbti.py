@@ -25,14 +25,14 @@ class MBTIUpdater:
         self.change_weight = change_weight
 
     
-    def update_mbti(self, user_feed: str, current_scores: Dict[str, int], missions_text: str, original_scores: Dict[str, int]) -> Dict:
+    async def update_mbti(self, user_feed: str, current_scores: Dict[str, int], missions_text: str, original_scores: Dict[str, int]) -> Dict:
         examples = self.retriever.get_similar(user_feed)
         examples_text = "\n".join([f"- ({mbti}) {doc}" for doc, mbti in examples])
 
         runner = MBTIGraphRunner(change_weight=self.change_weight)
 
         # langGraph로 최종 점수 결정
-        final_result =runner.run(
+        final_result = await runner.run(
             user_feed = user_feed,
             current_scores=current_scores,
             examples_text = examples_text,

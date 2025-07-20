@@ -35,7 +35,7 @@ class CLOVAXLangChainWrapper(LLM):
             device_map="auto"
         )
 
-    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
+    def _call(self, prompt: str, stop: Optional[List[str]] = None, run_manager: Optional[CallbackManager] = None) -> str:
         chat = [
             {"role": "tool_list", "content": ""},
             {"role": "system", "content": "AI 언어모델이 하는 일은 마니또 미션을 수행한 사용자 피드에 맞춰서 적절한 mbti 수치를 바꿔주는 일이야."},
@@ -49,6 +49,10 @@ class CLOVAXLangChainWrapper(LLM):
         )
         decoded = self._tokenizer.batch_decode(output_ids, skip_special_tokens=True)
         return decoded[0]
+    
+
+    async def _acall(self, prompt: str, stop: Optional[List[str]] = None, run_manager: Optional[CallbackManager] = None) -> str:
+        return self._call(prompt, stop, run_manager)
 
     @property
     def tokenizer(self):
