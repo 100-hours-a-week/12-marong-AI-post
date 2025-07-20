@@ -71,9 +71,24 @@ class MBTIUpdateService:
         }
 
     async def run(self, user_id: int):
-        rows = self.db.query(Posts.id, Posts.content, Missions.title).join(Missions, Posts.mission_id == Missions.id).filter(Posts.user_id == user_id).all()
+        processed_post_ids = set(
+        row[0] for row in self.db.query(MbtiUpdates.post_id).filter(MbtiUpdates.user_id == user_id).all()
+        )
+
+        # 처리되지 않은 피드만 조회
+        rows = (
+            self.db.query(Posts.id, Posts.content, Missions.title)
+            .join(Missions, Posts.mission_id == Missions.id)
+            .filter(Posts.user_id == user_id)
+            .filter(~Posts.id.in_(processed_post_ids))  
+            .all()
+        )
+
         if not rows:
-            print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
+            if processed_post_ids:
+                print(f"사용자 [{user_id}]의 모든 피드가 이미 처리되었습니다.")
+            else:
+                print(f"사용자 [{user_id}]의 피드가 존재하지 않습니다.")
             return
 
         prev_scores = self.fetch_prev_data(user_id)
@@ -140,4 +155,4 @@ async def main():
             await service.run(uid)
 
 if __name__ == "__main__":
-    asyncio.run(main())  # ✅ 비동기 실행 시작
+    asyncio.run(main())
